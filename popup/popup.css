@@ -60,6 +60,10 @@ body {
   cursor: pointer;
 }
 
+.menu-button + .menu-button {
+  margin-top: 8px;
+}
+
 .menu-button:hover {
   background: var(--fh-primary-dark);
 }
@@ -67,4 +71,17 @@ body {
 .menu-button:focus-visible {
   outline: 3px solid var(--fh-focus);
   outline-offset: 2px;
+}
+
+.popup-status {
+  min-height: 18px;
+  margin: 10px 0 0;
+  color: var(--fh-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.popup-status[data-kind='error'] {
+  color: #c93422;
 }

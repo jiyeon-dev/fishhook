@@ -3,7 +3,15 @@ extension:
   description: Show Jira content inside Fisheye.
 
 popup:
+  activatePage: Apply to current page
   openOptions: Open settings
+  activated: FishHook is active on this page.
+  activateFailed: Could not apply FishHook to this page.
+  fisheyeUrlRequired: Set the Fisheye URL first.
+  jiraUrlRequired: Set the Jira URL first.
+  notFisheyePage: Open the configured Fisheye page first.
+  permissionRequired: Site permission is required.
+  unsupportedPage: This page is not supported.
 
 options:
   title: Settings
@@ -33,3 +41,17 @@ toast:
   loadFailed: Could not load settings.
   saveFailed: Could not save settings.
   close: Close
+
+objectives:
+  loadAriaLabel: Load Jira content
+  loadTitle: Show Jira content in Objectives
+  fallbackText: Load content
+  loading: Loading Jira content.
+  restore: Restore original content
+  previewBanner: Jira content preview
+  openJira: Open Jira
+  jiraUrlRequired: The Jira URL is not set. Add the Jira URL in settings first.
+  loginRequired: You are not logged in to Jira. Log in to Jira first, then try again.
+  issueKeyNotFound: Could not find a Jira issue key on this Fisheye page.
+  targetNotFound: Could not find the Objectives area.
+  loadFailed: Could not load Jira content.

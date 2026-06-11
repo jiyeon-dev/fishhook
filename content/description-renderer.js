@@ -1,0 +1,293 @@
+(function () {
+  'use strict';
+
+  if (window.FishHookDescriptionRenderer) return;
+
+  const CODE_BLOCK_SELECTOR =
+    '[data-node-type="codeBlock"], [data-type="codeBlock"], [data-code-block], [data-testid="renderer-code-block"], [data-ds--code--code-block]';
+
+  function escapeHtml(text) {
+    return String(text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function mapCodeLang(raw) {
+    const normalized = String(raw || '')
+      .trim()
+      .toLowerCase()
+      .replace(/^language-/, '');
+    if (!normalized) return 'plain';
+    if (normalized === 'js') return 'javascript';
+    return normalized.replace(/[^a-z0-9+#.-]/g, '') || 'plain';
+  }
+
+  function readCodeLang(block, pre, code) {
+    for (const attr of ['data-code-lang', 'data-language', 'data-lang']) {
+      const fromBlock = block?.getAttribute?.(attr);
+      if (fromBlock) return fromBlock;
+      const fromPre = pre?.getAttribute?.(attr);
+      if (fromPre) return fromPre;
+      const fromCode = code?.getAttribute?.(attr);
+      if (fromCode) return fromCode;
+    }
+
+    const classTarget = code || pre || block;
+    const className = classTarget?.className || '';
+    const match = String(className).match(/(?:language-|lang-)([a-z0-9+#.-]+)/i);
+    return match ? match[1] : '';
+  }
+
+  function looksLikeJson(text) {
+    const value = String(text || '').trim();
+    return Boolean(value && (value.startsWith('{') || value.startsWith('[')) && value.includes('"'));
+  }
+
+  function highlightCode(text, lang) {
+    const raw = String(text || '');
+    if (!raw.trim()) return '';
+    const escaped = escapeHtml(raw);
+    const normalized = mapCodeLang(lang);
+    const jsonStyle = normalized === 'json' || looksLikeJson(raw);
+    const javaStyle = !jsonStyle && ['java', 'javascript', 'groovy', 'kotlin', 'scala'].includes(normalized);
+
+    let out = '';
+    let i = 0;
+    while (i < escaped.length) {
+      const ch = escaped[i];
+
+      if (javaStyle && ch === '#') {
+        let end = escaped.indexOf('\n', i);
+        if (end === -1) end = escaped.length;
+        out += `<span class="code-comment">${escaped.slice(i, end)}</span>`;
+        i = end;
+        continue;
+      }
+
+      if (ch === '"' || ch === "'") {
+        const quote = ch;
+        let j = i + 1;
+        while (j < escaped.length) {
+          if (escaped[j] === '\\') {
+            j += 2;
+            continue;
+          }
+          if (escaped[j] === quote) {
+            j += 1;
+            break;
+          }
+          j += 1;
+        }
+        out += `<span class="code-quote">${escaped.slice(i, j)}</span>`;
+        i = j;
+        continue;
+      }
+
+      const rest = escaped.slice(i);
+      const keyword = rest.match(/^(true|false|null)\b/);
+      if (keyword) {
+        out += `<span class="code-keyword">${keyword[1]}</span>`;
+        i += keyword[1].length;
+        continue;
+      }
+
+      if (javaStyle) {
+        const method = rest.match(/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/);
+        if (method) {
+          out += `<span class="code-keyword">${method[1]}</span>`;
+          i += method[1].length;
+          continue;
+        }
+      }
+
+      out += ch;
+      i += 1;
+    }
+    return out;
+  }
+
+  function createCodePanel(doc, innerHtml, lang) {
+    const outer = doc.createElement('div');
+    outer.className = 'code panel';
+    outer.style.borderWidth = '1px';
+
+    const content = doc.createElement('div');
+    content.className = 'codeContent panelContent';
+
+    const pre = doc.createElement('pre');
+    pre.className = `code-${mapCodeLang(lang)}`;
+    pre.innerHTML = innerHtml || '';
+
+    content.appendChild(pre);
+    outer.appendChild(content);
+    return outer;
+  }
+
+  function getPlainCodeText(block, pre, code) {
+    if (code) return code.textContent || '';
+    if (pre) return pre.textContent || '';
+    return block?.textContent || '';
+  }
+
+  function getCodeInnerHtml(pre, code) {
+    if (code) return code.innerHTML;
+    if (!pre) return '';
+    const onlyCode = pre.querySelector(':scope > code');
+    if (onlyCode && pre.children.length === 1) return onlyCode.innerHTML;
+    if ((pre.textContent || '').trim() && !pre.querySelector('*')) return escapeHtml(pre.textContent || '');
+    return pre.innerHTML;
+  }
+
+  function convertCodeBlocks(doc) {
+    const blocks = new Set();
+    doc.querySelectorAll(CODE_BLOCK_SELECTOR).forEach((el) => blocks.add(el));
+    doc.querySelectorAll('pre').forEach((pre) => {
+      if (pre.closest('.code.panel')) return;
+      if (pre.closest(CODE_BLOCK_SELECTOR)) return;
+      blocks.add(pre);
+    });
+
+    blocks.forEach((block) => {
+      const pre = block.tagName === 'PRE' ? block : block.querySelector('pre');
+      const code = (pre && pre.querySelector('code')) || block.querySelector('code');
+      const lang = readCodeLang(block, pre, code);
+      const text = getPlainCodeText(block, pre, code);
+      let innerHtml = getCodeInnerHtml(pre, code);
+      if (!innerHtml.trim()) innerHtml = escapeHtml(text);
+      if (!/<span\s+class="code-(quote|keyword|comment)/i.test(innerHtml)) {
+        innerHtml = highlightCode(text, lang);
+      }
+      block.replaceWith(createCodePanel(doc, innerHtml, lang));
+    });
+  }
+
+  function unwrapCodeWrappers(doc) {
+    doc.querySelectorAll('.preformatted.panel').forEach((wrapper) => {
+      const codePanel = wrapper.querySelector('.code.panel');
+      if (codePanel) wrapper.replaceWith(codePanel);
+    });
+    doc.querySelectorAll('.preformattedContent.panelContent').forEach((wrapper) => {
+      const codePanel = wrapper.querySelector(':scope > .code.panel');
+      if (codePanel) wrapper.replaceWith(codePanel);
+    });
+  }
+
+  function ensureCodeContentWrapper(doc) {
+    doc.querySelectorAll('.code.panel').forEach((panel) => {
+      if (panel.querySelector(':scope > .codeContent.panelContent')) return;
+      const pre = panel.querySelector(':scope > pre');
+      if (!pre) return;
+      const content = doc.createElement('div');
+      content.className = 'codeContent panelContent';
+      panel.insertBefore(content, pre);
+      content.appendChild(pre);
+    });
+  }
+
+  function normalizeTables(doc) {
+    doc.querySelectorAll('table').forEach((table) => {
+      table.classList.add('wiki-table');
+    });
+  }
+
+  function normalizeMedia(doc) {
+    doc.querySelectorAll('[data-testid="media-badges"], table button').forEach((el) => el.remove());
+    doc.querySelectorAll('img').forEach((img) => {
+      const src = img.getAttribute('src') || '';
+      if (!src.startsWith('blob:')) return;
+      const alt =
+        img.getAttribute('alt') ||
+        img.getAttribute('data-file-name') ||
+        img.closest('[data-file-name]')?.getAttribute('data-file-name') ||
+        'image';
+      const placeholder = doc.createElement('span');
+      placeholder.className = 'fishhook-media-placeholder';
+      placeholder.textContent = `[image: ${alt}]`;
+      img.replaceWith(placeholder);
+    });
+  }
+
+  function isInsideCode(node) {
+    let el = node.parentElement;
+    while (el) {
+      const tag = el.tagName?.toLowerCase();
+      if (tag === 'code' || tag === 'pre') return true;
+      if (el.classList?.contains('code') || el.classList?.contains('codeContent')) return true;
+      if (el.closest?.('.code.panel')) return true;
+      el = el.parentElement;
+    }
+    return false;
+  }
+
+  function normalizeInlineCode(doc) {
+    doc.querySelectorAll('code, kbd').forEach((el) => {
+      if (el.closest('pre') || el.closest('.code.panel')) return;
+      el.className = 'wiki-inline-code';
+    });
+
+    const textNodes = [];
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      if (!node.textContent || isInsideCode(node)) continue;
+      if (node.textContent.includes('{{') || node.textContent.includes('`')) {
+        textNodes.push(node);
+      }
+    }
+
+    textNodes.forEach((textNode) => {
+      const text = textNode.textContent;
+      const fragment = doc.createDocumentFragment();
+      let index = 0;
+      const regex = /(\{\{([^]*?)\}\}|`([^`]+)`)/g;
+      let match;
+      let found = false;
+      while ((match = regex.exec(text)) !== null) {
+        found = true;
+        if (match.index > index) fragment.appendChild(doc.createTextNode(text.slice(index, match.index)));
+        const code = doc.createElement('code');
+        code.className = 'wiki-inline-code';
+        code.textContent = match[2] || match[3] || '';
+        fragment.appendChild(code);
+        index = match.index + match[0].length;
+      }
+      if (!found) return;
+      if (index < text.length) fragment.appendChild(doc.createTextNode(text.slice(index)));
+      textNode.parentNode.replaceChild(fragment, textNode);
+    });
+  }
+
+  function addHeadingSpacers(doc) {
+    doc.querySelectorAll('h4').forEach((h4) => {
+      const previous = h4.previousElementSibling;
+      if (previous?.classList?.contains('fishhook-h4-spacer')) return;
+      const spacer = doc.createElement('p');
+      spacer.className = 'fishhook-h4-spacer';
+      spacer.setAttribute('aria-hidden', 'true');
+      h4.parentNode.insertBefore(spacer, h4);
+    });
+  }
+
+  function render(html) {
+    if (!html || !String(html).trim()) return '';
+    try {
+      const doc = document.implementation.createHTMLDocument('');
+      doc.body.innerHTML = String(html);
+      doc.querySelectorAll('script, style, link, meta, iframe, noscript').forEach((el) => el.remove());
+      convertCodeBlocks(doc);
+      unwrapCodeWrappers(doc);
+      ensureCodeContentWrapper(doc);
+      normalizeTables(doc);
+      normalizeMedia(doc);
+      normalizeInlineCode(doc);
+      addHeadingSpacers(doc);
+      return doc.body.innerHTML;
+    } catch (error) {
+      console.warn('[fishhook][renderer] Failed to normalize Jira description.', error);
+      return String(html);
+    }
+  }
+
+  window.FishHookDescriptionRenderer = { render };
+})();

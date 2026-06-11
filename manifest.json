@@ -10,6 +10,11 @@
   },
   "action": {
     "default_title": "fishhook",
+    "default_popup": "popup/popup.html",
     "default_icon": "icons/icon512.png"
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
   }
 }

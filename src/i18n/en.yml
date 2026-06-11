@@ -1,0 +1,35 @@
+extension:
+  name: FishHook
+  description: Show Jira content inside Fisheye.
+
+popup:
+  openOptions: Open settings
+
+options:
+  title: Settings
+  eyebrow: fishhook settings
+  description: Set the base paths used to show Jira content inside Fisheye.
+  language:
+    label: Language
+    auto: Browser default
+    en: English
+    ko: Korean
+  jiraUrl:
+    label: Jira URL
+    placeholder: https://jira.<domain>.com
+    invalid: Enter a valid Jira URL.
+  fisheyeUrl:
+    label: Fisheye URL
+    placeholder: https://fisheye.<domain>.com
+    invalid: Enter a valid Fisheye URL.
+  save: Save
+  saving: Saving
+
+toast:
+  saved: Saved.
+  languageChanged: Language changed.
+  invalidJiraUrl: Check the Jira URL.
+  invalidFisheyeUrl: Check the Fisheye URL.
+  loadFailed: Could not load settings.
+  saveFailed: Could not save settings.
+  close: Close

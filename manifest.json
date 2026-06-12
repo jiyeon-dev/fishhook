@@ -11,8 +11,8 @@
   "content_scripts": [
     {
       "matches": ["http://*/*", "https://*/*"],
-      "js": ["content/description-renderer.js", "content/fisheye-content.js"],
-      "css": ["content/fisheye-content.css"],
+      "js": ["content/description-renderer.js", "content/desc-panel.js", "content/fisheye-content.js"],
+      "css": ["content/fisheye-content.css", "content/desc-panel.css"],
       "run_at": "document_idle"
     }
   ],

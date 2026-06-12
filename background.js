@@ -107,6 +107,10 @@ function parseIssueDescription(json) {
   return null;
 }
 
+function parseIssueTitle(json) {
+  return String(json?.fields?.summary || '').trim();
+}
+
 async function fetchJiraIssue(issueKey) {
   const key = String(issueKey || '').trim().toUpperCase();
   if (!/^[A-Z][A-Z0-9]+-\d+$/.test(key)) {
@@ -123,7 +127,7 @@ async function fetchJiraIssue(issueKey) {
   for (const version of ['3', '2', 'latest']) {
     const apiUrl = `${jiraBaseUrl}/rest/api/${version}/issue/${encodeURIComponent(
       key
-    )}?fields=description&expand=renderedFields`;
+    )}?fields=summary,description&expand=renderedFields`;
 
     try {
       const response = await fetch(apiUrl, {
@@ -150,13 +154,24 @@ async function fetchJiraIssue(issueKey) {
       }
 
       const json = await response.json();
+      const issueTitle = parseIssueTitle(json);
       const parsed = parseIssueDescription(json);
       if (parsed) {
         return {
           ok: true,
           issueKey: key,
           issueUrl,
+          issueTitle,
           ...parsed,
+        };
+      }
+      if (issueTitle) {
+        return {
+          ok: false,
+          error: 'DESCRIPTION_NOT_FOUND',
+          issueKey: key,
+          issueUrl,
+          issueTitle,
         };
       }
     } catch (error) {

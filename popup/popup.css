@@ -64,6 +64,16 @@ body {
   margin-top: 8px;
 }
 
+.menu-button--secondary {
+  color: var(--fh-text);
+  background: var(--fh-soft);
+  border: 1px solid var(--fh-border);
+}
+
+.menu-button--secondary:hover {
+  background: #eef5e4;
+}
+
 .menu-button:hover {
   background: var(--fh-primary-dark);
 }

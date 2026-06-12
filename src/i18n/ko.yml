@@ -4,6 +4,24 @@ extension:
 
 popup:
   openOptions: 환경설정 열기
+  showDescription: Description 미리보기
+  errors:
+    noTab: 활성 탭을 찾지 못했습니다. 잠시 후 다시 시도해 주세요.
+    unsupportedPage: Fisheye /cru/ 리뷰 페이지에서만 사용할 수 있습니다. Fisheye 탭을 연 뒤 다시 시도해 주세요.
+    connectionFailed: |-
+      이 탭에 확장 스크립트를 붙이지 못했습니다.
+
+      · Fisheye 리뷰 페이지(/cru/)인지 확인
+      · 페이지 새로고침(F5) 후 다시 시도
+      · 환경설정에서 Fisheye 경로가 올바른지 확인
+
+      {detail}
+    issueKeyNotFound: Fisheye 화면에서 Jira 이슈 키(GS-12345 형식)를 찾지 못했습니다.
+    jiraUrlRequired: Jira 경로가 설정되어 있지 않습니다. 환경설정에서 Jira 경로를 먼저 입력해 주세요.
+    descriptionNotFound: Jira Description이 비어 있거나 가져오지 못했습니다.
+    loginRequired: Jira에 로그인되어 있지 않습니다. Jira에 먼저 로그인한 뒤 다시 시도해 주세요.
+    previewError: Description 미리보기를 열지 못했습니다.
+    generic: Description 미리보기를 열지 못했습니다. Fisheye 리뷰 페이지에서 다시 시도해 주세요.
 
 options:
   title: 환경설정
@@ -27,6 +45,9 @@ options:
   objectivesButton:
     label: Objectives 버튼
     enable: Fisheye Objectives 옆에 Jira 불러오기 버튼 표시
+  descPanelFab:
+    label: Description 미리보기 버튼
+    enable: Fisheye 우하단에 Description 미리보기 버튼(📖) 표시
 
 toast:
   saved: 저장했습니다.
@@ -37,6 +58,8 @@ toast:
   saveFailed: 설정을 저장하지 못했습니다.
   objectivesButtonEnabled: Objectives 불러오기 버튼을 표시합니다.
   objectivesButtonDisabled: Objectives 불러오기 버튼을 숨깁니다.
+  descPanelFabEnabled: Description 미리보기 버튼을 표시합니다.
+  descPanelFabDisabled: Description 미리보기 버튼을 숨깁니다.
   close: 닫기
 
 objectives:

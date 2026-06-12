@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   fisheyeUrl: 'fishhook.fisheyeBaseUrl',
   language: 'fishhook.language',
   showObjectivesButton: 'fishhook.showObjectivesButton',
+  showDescriptionPanelFab: 'fishhook.showDescriptionPanelFab',
 };
 
 const i18n = window.FishHookI18n;
@@ -16,6 +17,7 @@ const jiraError = document.getElementById('jira-url-error');
 const fisheyeError = document.getElementById('fisheye-url-error');
 const saveButton = document.getElementById('save-button');
 const showObjectivesButton = document.getElementById('show-objectives-button');
+const showDescPanelFab = document.getElementById('show-desc-panel-fab');
 const toastRoot = document.getElementById('toast-root');
 
 let toastTimer = null;
@@ -124,6 +126,7 @@ async function loadSettings() {
     showObjectivesButton.checked =
       !Object.prototype.hasOwnProperty.call(data, STORAGE_KEYS.showObjectivesButton) ||
       data[STORAGE_KEYS.showObjectivesButton] === true;
+    showDescPanelFab.checked = data[STORAGE_KEYS.showDescriptionPanelFab] === true;
     clearFieldError(jiraInput, jiraError);
     clearFieldError(fisheyeInput, fisheyeError);
   } catch (error) {
@@ -161,6 +164,7 @@ async function saveSettings(event) {
       [STORAGE_KEYS.fisheyeUrl]: fisheyeUrl,
       [STORAGE_KEYS.language]: languageSelect.value,
       [STORAGE_KEYS.showObjectivesButton]: showObjectivesButton.checked,
+      [STORAGE_KEYS.showDescriptionPanelFab]: showDescPanelFab.checked,
     });
     jiraInput.value = jiraUrl;
     fisheyeInput.value = fisheyeUrl;
@@ -188,6 +192,21 @@ showObjectivesButton.addEventListener('change', async () => {
     );
   } catch (_) {
     showObjectivesButton.checked = !enabled;
+    showToast(t('toast.saveFailed'), 'error');
+  }
+});
+showDescPanelFab.addEventListener('change', async () => {
+  const enabled = showDescPanelFab.checked;
+  try {
+    await chrome.storage.sync.set({
+      [STORAGE_KEYS.showDescriptionPanelFab]: enabled,
+    });
+    showToast(
+      enabled ? t('toast.descPanelFabEnabled') : t('toast.descPanelFabDisabled'),
+      'success'
+    );
+  } catch (_) {
+    showDescPanelFab.checked = !enabled;
     showToast(t('toast.saveFailed'), 'error');
   }
 });

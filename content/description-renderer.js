@@ -336,8 +336,45 @@
     return true;
   }
 
+  function stripOrphanWikiDelimitersAroundInlineCode(doc) {
+    doc.querySelectorAll('code, kbd').forEach((codeEl) => {
+      if (codeEl.closest('pre') || codeEl.closest('.code.panel')) return;
+
+      let next = codeEl.nextSibling;
+      while (next?.nodeType === Node.TEXT_NODE) {
+        const original = next.textContent || '';
+        const cleaned = original.replace(/^\s*\}\}+/, '');
+        if (cleaned === original) break;
+        next.textContent = cleaned;
+        if (!cleaned.trim()) {
+          const toRemove = next;
+          next = next.nextSibling;
+          toRemove.remove();
+          continue;
+        }
+        break;
+      }
+
+      let previous = codeEl.previousSibling;
+      while (previous?.nodeType === Node.TEXT_NODE) {
+        const original = previous.textContent || '';
+        const cleaned = original.replace(/\{\{+\s*$/, '');
+        if (cleaned === original) break;
+        previous.textContent = cleaned;
+        if (!cleaned.trim()) {
+          const toRemove = previous;
+          previous = previous.previousSibling;
+          toRemove.remove();
+          continue;
+        }
+        break;
+      }
+    });
+  }
+
   function normalizeTableCellInlineCode(doc) {
     doc.querySelectorAll('table td, table th').forEach((cell) => {
+      if (cell.querySelector('code, kbd, pre, .code.panel')) return;
       if (cell.querySelector('.wiki-inline-code')) return;
 
       const text = cell.textContent || '';
@@ -394,6 +431,7 @@
       ensureCodeContentWrapper(doc);
       normalizeTables(doc);
       normalizeMedia(doc);
+      stripOrphanWikiDelimitersAroundInlineCode(doc);
       normalizeInlineCode(doc);
       addHeadingSpacers(doc);
       return doc.body.innerHTML;

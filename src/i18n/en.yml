@@ -4,6 +4,24 @@ extension:
 
 popup:
   openOptions: Open settings
+  showDescription: Description preview
+  errors:
+    noTab: Could not find the active tab. Try again in a moment.
+    unsupportedPage: This works only on Fisheye /cru/ review pages. Open a Fisheye tab and try again.
+    connectionFailed: |-
+      Could not attach the extension script to this tab.
+
+      · Confirm you are on a Fisheye review page (/cru/)
+      · Refresh the page (F5) and try again
+      · Check the Fisheye URL in settings
+
+      {detail}
+    issueKeyNotFound: Could not find a Jira issue key (GS-12345 format) on this Fisheye page.
+    jiraUrlRequired: The Jira URL is not set. Add the Jira URL in settings first.
+    descriptionNotFound: Jira Description is empty or could not be loaded.
+    loginRequired: You are not logged in to Jira. Log in to Jira first, then try again.
+    previewError: Could not open the Description preview.
+    generic: Could not open the Description preview. Try again on a Fisheye review page.
 
 options:
   title: Settings
@@ -27,6 +45,9 @@ options:
   objectivesButton:
     label: Objectives button
     enable: Show Jira load button next to Fisheye Objectives
+  descPanelFab:
+    label: Description preview button
+    enable: Show Description preview button (📖) at the bottom-right of Fisheye
 
 toast:
   saved: Saved.
@@ -37,6 +58,8 @@ toast:
   saveFailed: Could not save settings.
   objectivesButtonEnabled: The Objectives load button is now shown.
   objectivesButtonDisabled: The Objectives load button is now hidden.
+  descPanelFabEnabled: The Description preview button is now shown.
+  descPanelFabDisabled: The Description preview button is now hidden.
   close: Close
 
 objectives:

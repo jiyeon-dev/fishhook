@@ -11,9 +11,14 @@
   const OBJECTIVES_EDIT_SELECTOR = 'a.edit-objectives.edit-link, a.edit-objectives';
   const FISHEYE_URL_STORAGE_KEY = 'fishhook.fisheyeBaseUrl';
   const SHOW_OBJECTIVES_BUTTON_KEY = 'fishhook.showObjectivesButton';
+  const SHOW_DESC_PANEL_FAB_KEY = 'fishhook.showDescriptionPanelFab';
+  const DESC_FAB_ID = 'fishhook-desc-fab';
+  const DESC_FAB_CLASS = 'fishhook-desc-fab';
+  const DESC_FAB_ICON = '📖';
   const LANGUAGE_STORAGE_KEY = 'fishhook.language';
   const LOG = '[fishhook][fisheye]';
   let activeLanguage = 'en';
+  let descPanelFabEnabled = false;
   let objectivesMissingLogged = false;
   let objectivesBodyEl = null;
   let objectivesOriginalHtml = '';
@@ -38,6 +43,22 @@
       issueKeyNotFound: 'Fisheye 화면에서 Jira 이슈 키를 찾지 못했습니다.',
       targetNotFound: 'Objectives 영역을 찾지 못했습니다.',
       loadFailed: 'Jira 내용을 불러오지 못했습니다.',
+      panelTitleLoading: '제목 불러오는 중…',
+      panelBodyLabel: 'Description 본문',
+      panelSourceLoading: '불러오는 중…',
+      panelSourceDefault: 'Jira 이슈 Description',
+      panelSourceFailed: '가져오기 실패 — Jira 로그인 확인',
+      panelLoading: 'Jira에서 Description을 불러오는 중…',
+      panelLoadingHint: '잠시만 기다려 주세요 (최대 20초)',
+      panelEmptyIntro: 'Description 본문을 가져오지 못했어요.',
+      panelEmptyLoginPrefix: 'Chrome에서 Jira ',
+      panelEmptyLoginSuffix: '에 로그인돼 있는지 확인해 주세요.',
+      panelEmptyBrowseHint: 'Jira 이슈 페이지에서 Description이 보이는지도 확인해 보세요.',
+      panelCloseTitle: '닫기',
+      panelCloseAria: '닫기',
+      panelResizeTitle: '왼쪽 위 모서리를 드래그해 크기 조절',
+      panelResizeAria: '패널 크기 조절',
+      panelDialogAria: 'Jira Description 미리보기',
     },
     en: {
       loadAriaLabel: 'Load Jira content',
@@ -52,6 +73,22 @@
       issueKeyNotFound: 'Could not find a Jira issue key on this Fisheye page.',
       targetNotFound: 'Could not find the Objectives area.',
       loadFailed: 'Could not load Jira content.',
+      panelTitleLoading: 'Loading title…',
+      panelBodyLabel: 'Description body',
+      panelSourceLoading: 'Loading…',
+      panelSourceDefault: 'Jira issue Description',
+      panelSourceFailed: 'Fetch failed — check Jira login',
+      panelLoading: 'Loading Description from Jira…',
+      panelLoadingHint: 'Please wait (up to 20 seconds)',
+      panelEmptyIntro: 'Could not load the Description body.',
+      panelEmptyLoginPrefix: 'Make sure you are logged in to Jira at ',
+      panelEmptyLoginSuffix: '.',
+      panelEmptyBrowseHint: 'Also check that Description is visible on the Jira issue page.',
+      panelCloseTitle: 'Close',
+      panelCloseAria: 'Close',
+      panelResizeTitle: 'Drag the top-left corner to resize',
+      panelResizeAria: 'Resize panel',
+      panelDialogAria: 'Jira Description preview',
     },
   };
 
@@ -150,6 +187,16 @@
     } catch (error) {
       console.warn(LOG, 'Failed to read Jira settings.', error);
       return null;
+    }
+  }
+
+  async function getShowDescPanelFab() {
+    try {
+      const data = await chrome.storage.sync.get(SHOW_DESC_PANEL_FAB_KEY);
+      return data[SHOW_DESC_PANEL_FAB_KEY] === true;
+    } catch (error) {
+      console.warn(LOG, 'Failed to read Description panel FAB setting.', error);
+      return false;
     }
   }
 
@@ -331,6 +378,55 @@
     return null;
   }
 
+  function stripIssueKeyFromTitleText(raw, issueKey) {
+    let text = String(raw || '').replace(/\s+/g, ' ').trim();
+    if (!text) return '';
+
+    const key = normalizeIssueKey(issueKey);
+    if (key) {
+      text = text.replace(new RegExp(`^[«"'\\s]*${key}[»"'\\s]*`, 'i'), '');
+      text = text.replace(new RegExp(`^[\\s\\-–—:·|]+`), '');
+    }
+
+    ISSUE_KEY_TOKEN_RE.lastIndex = 0;
+    text = text.replace(ISSUE_KEY_TOKEN_RE, '');
+    text = text.replace(/^[«»"'""\s\-–—:·|]+/, '').trim();
+    return text;
+  }
+
+  function extractIssueTitleFromPage(issueKey) {
+    const titleRoots = document.querySelectorAll(
+      '.title-content, #title-content, [class*="title-content"]'
+    );
+    for (const root of titleRoots) {
+      for (const link of root.querySelectorAll('a[href]')) {
+        const href = link.getAttribute('href') || link.href;
+        const fromBrowse = parseIssueKeyFromBrowseHref(href);
+        const fromQuery = parseIssueKeyFromQueryHref(href);
+        const matchesKey =
+          !issueKey ||
+          fromBrowse === normalizeIssueKey(issueKey) ||
+          fromQuery === normalizeIssueKey(issueKey);
+        if (!matchesKey && issueKey) continue;
+        const title = stripIssueKeyFromTitleText(link.textContent, issueKey);
+        if (title) return title;
+      }
+
+      const title = stripIssueKeyFromTitleText(root.textContent, issueKey);
+      if (title) return title;
+    }
+
+    const candidates = document.querySelectorAll(
+      'h1, #overview h1, #overview .module-title, .review-title, #review-title, [class*="review-title"], .module-title'
+    );
+    for (const candidate of candidates) {
+      const title = stripIssueKeyFromTitleText(candidate.textContent, issueKey);
+      if (title) return title;
+    }
+
+    return stripIssueKeyFromTitleText(document.title, issueKey);
+  }
+
   function extractIssueKeyFromPage() {
     const fromTitleLink = extractIssueKeyFromTitleContentLink();
     if (fromTitleLink) return fromTitleLink;
@@ -467,8 +563,128 @@
     showToast(t('loadFailed'), 'error');
   }
 
+  function getDescPanelLabels() {
+    return {
+      titleLoading: t('panelTitleLoading'),
+      bodyLabel: t('panelBodyLabel'),
+      sourceLoading: t('panelSourceLoading'),
+      sourceDefault: t('panelSourceDefault'),
+      sourceFailed: t('panelSourceFailed'),
+      loading: t('panelLoading'),
+      loadingHint: t('panelLoadingHint'),
+      emptyIntro: t('panelEmptyIntro'),
+      emptyLoginPrefix: t('panelEmptyLoginPrefix'),
+      emptyLoginSuffix: t('panelEmptyLoginSuffix'),
+      emptyBrowseHint: t('panelEmptyBrowseHint'),
+      closeTitle: t('panelCloseTitle'),
+      closeAria: t('panelCloseAria'),
+      resizeTitle: t('panelResizeTitle'),
+      resizeAria: t('panelResizeAria'),
+      dialogAria: t('panelDialogAria'),
+      openJira: t('openJira'),
+    };
+  }
+
+  function hideDescriptionPanel() {
+    window.FishHookDescPanel?.hide();
+  }
+
+  async function openDescriptionPanelPreview() {
+    await refreshActiveLanguage();
+
+    const jiraBaseUrl = await getConfiguredJiraBaseUrl();
+    if (!jiraBaseUrl) {
+      return { ok: false, error: 'JIRA_URL_NOT_CONFIGURED' };
+    }
+
+    const issueKey = extractIssueKeyFromPage();
+    if (!issueKey) {
+      return { ok: false, error: 'ISSUE_KEY_NOT_FOUND' };
+    }
+
+    const issueUrl = `${jiraBaseUrl}/browse/${encodeURIComponent(issueKey)}`;
+    let jiraHost = 'Jira';
+    try {
+      jiraHost = new URL(jiraBaseUrl).host;
+    } catch (_) {}
+
+    const issueTitle = extractIssueTitleFromPage(issueKey);
+    const labels = getDescPanelLabels();
+    window.FishHookDescPanel?.show({
+      issueKey,
+      issueTitle,
+      issueUrl,
+      loading: true,
+      labels,
+      jiraHost,
+    });
+
+    const data = await fetchJiraContent(issueKey);
+    const payload = data.ok ? data : { ok: false, html: '', text: '', error: data.error };
+    window.FishHookDescPanel?.updateAfterFetch(
+      data,
+      payload,
+      labels,
+      jiraHost,
+      data.issueUrl || issueUrl
+    );
+
+    const hasContent =
+      data.ok &&
+      ((data.html && String(data.html).trim()) || (data.text && String(data.text).trim()));
+
+    return {
+      ok: true,
+      action: 'opened',
+      issueKey,
+      hasContent: Boolean(hasContent),
+      fetchError: data.ok ? null : data.error,
+    };
+  }
+
+  async function toggleDescriptionPreview() {
+    if (window.FishHookDescPanel?.isVisible()) {
+      hideDescriptionPanel();
+      return { ok: true, action: 'closed' };
+    }
+    return openDescriptionPanelPreview();
+  }
+
+  function removeDescFab() {
+    document.getElementById(DESC_FAB_ID)?.remove();
+  }
+
+  function injectDescFab() {
+    if (!descPanelFabEnabled) return;
+    if (document.getElementById(DESC_FAB_ID)) return;
+    if (!document.body) return;
+
+    const fab = document.createElement('button');
+    fab.id = DESC_FAB_ID;
+    fab.type = 'button';
+    fab.className = DESC_FAB_CLASS;
+    fab.textContent = DESC_FAB_ICON;
+    fab.setAttribute('aria-label', t('panelDialogAria'));
+    fab.title = t('panelDialogAria');
+    fab.addEventListener('click', () => {
+      toggleDescriptionPreview().catch((error) => {
+        console.warn(LOG, 'Description preview toggle failed.', error);
+      });
+    });
+    document.body.appendChild(fab);
+  }
+
+  function syncDescFab(fisheyeBaseUrl) {
+    if (!isPageEligible(fisheyeBaseUrl) || !descPanelFabEnabled) {
+      removeDescFab();
+      return;
+    }
+    injectDescFab();
+  }
+
   async function loadJiraIntoObjectives(button) {
     await refreshActiveLanguage();
+    hideDescriptionPanel();
 
     const jiraBaseUrl = await getConfiguredJiraBaseUrl();
     if (!jiraBaseUrl) {
@@ -670,7 +886,56 @@
     }
   }
 
+  async function initDescPanelFeature() {
+    descPanelFabEnabled = await getShowDescPanelFab();
+    const fisheyeBaseUrl = await getConfiguredFisheyeBaseUrl();
+    syncDescFab(fisheyeBaseUrl);
+
+    if (!isExtensionContextValid()) return;
+
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message?.type !== 'FISHHOOK_SHOW_DESCRIPTION_PREVIEW') return false;
+
+      getConfiguredFisheyeBaseUrl()
+        .then((nextFisheyeBaseUrl) => {
+          if (!isPageEligible(nextFisheyeBaseUrl)) {
+            sendResponse({ ok: false, error: 'UNSUPPORTED_PAGE' });
+            return null;
+          }
+          return toggleDescriptionPreview();
+        })
+        .then((result) => {
+          if (result) sendResponse(result);
+        })
+        .catch((error) => {
+          sendResponse({ ok: false, error: 'PREVIEW_ERROR', detail: String(error) });
+        });
+      return true;
+    });
+
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'sync') return;
+
+      if (changes[SHOW_DESC_PANEL_FAB_KEY]) {
+        descPanelFabEnabled = changes[SHOW_DESC_PANEL_FAB_KEY].newValue === true;
+        getConfiguredFisheyeBaseUrl().then((nextFisheyeBaseUrl) => {
+          syncDescFab(nextFisheyeBaseUrl);
+        });
+      }
+
+      if (changes[FISHEYE_URL_STORAGE_KEY]) {
+        getConfiguredFisheyeBaseUrl().then((nextFisheyeBaseUrl) => {
+          syncDescFab(nextFisheyeBaseUrl);
+        });
+      }
+    });
+  }
+
   initObjectivesButtonFeature().catch((error) => {
     console.warn(LOG, 'Failed to initialize Fisheye content script.', error);
+  });
+
+  initDescPanelFeature().catch((error) => {
+    console.warn(LOG, 'Failed to initialize Description panel feature.', error);
   });
 })();

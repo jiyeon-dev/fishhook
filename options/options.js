@@ -4,6 +4,7 @@ const STORAGE_KEYS = {
   jiraUrl: 'fishhook.jiraBaseUrl',
   fisheyeUrl: 'fishhook.fisheyeBaseUrl',
   language: 'fishhook.language',
+  showObjectivesButton: 'fishhook.showObjectivesButton',
 };
 
 const i18n = window.FishHookI18n;
@@ -14,6 +15,7 @@ const fisheyeInput = document.getElementById('fisheye-url');
 const jiraError = document.getElementById('jira-url-error');
 const fisheyeError = document.getElementById('fisheye-url-error');
 const saveButton = document.getElementById('save-button');
+const showObjectivesButton = document.getElementById('show-objectives-button');
 const toastRoot = document.getElementById('toast-root');
 
 let toastTimer = null;
@@ -119,6 +121,9 @@ async function loadSettings() {
     applyLanguage(activeLanguage);
     jiraInput.value = data[STORAGE_KEYS.jiraUrl] || '';
     fisheyeInput.value = data[STORAGE_KEYS.fisheyeUrl] || '';
+    showObjectivesButton.checked =
+      !Object.prototype.hasOwnProperty.call(data, STORAGE_KEYS.showObjectivesButton) ||
+      data[STORAGE_KEYS.showObjectivesButton] === true;
     clearFieldError(jiraInput, jiraError);
     clearFieldError(fisheyeInput, fisheyeError);
   } catch (error) {
@@ -155,6 +160,7 @@ async function saveSettings(event) {
       [STORAGE_KEYS.jiraUrl]: jiraUrl,
       [STORAGE_KEYS.fisheyeUrl]: fisheyeUrl,
       [STORAGE_KEYS.language]: languageSelect.value,
+      [STORAGE_KEYS.showObjectivesButton]: showObjectivesButton.checked,
     });
     jiraInput.value = jiraUrl;
     fisheyeInput.value = fisheyeUrl;
@@ -170,6 +176,21 @@ async function saveSettings(event) {
 }
 
 form.addEventListener('submit', saveSettings);
+showObjectivesButton.addEventListener('change', async () => {
+  const enabled = showObjectivesButton.checked;
+  try {
+    await chrome.storage.sync.set({
+      [STORAGE_KEYS.showObjectivesButton]: enabled,
+    });
+    showToast(
+      enabled ? t('toast.objectivesButtonEnabled') : t('toast.objectivesButtonDisabled'),
+      'success'
+    );
+  } catch (_) {
+    showObjectivesButton.checked = !enabled;
+    showToast(t('toast.saveFailed'), 'error');
+  }
+});
 languageSelect.addEventListener('change', async () => {
   applyLanguage(languageSelect.value);
   try {

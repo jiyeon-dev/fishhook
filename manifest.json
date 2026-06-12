@@ -4,11 +4,18 @@
   "version": "0.1.0",
   "description": "Show Jira issue content inside Fisheye.",
   "permissions": ["storage", "scripting", "tabs"],
-  "host_permissions": [],
-  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content/description-renderer.js", "content/fisheye-content.js"],
+      "css": ["content/fisheye-content.css"],
+      "run_at": "document_idle"
+    }
+  ],
   "icons": {
     "512": "icons/icon512.png"
   },

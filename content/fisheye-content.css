@@ -66,27 +66,22 @@
   gap: 8px 12px;
   margin: 0 0 12px;
   padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.4;
   color: #172b4d;
-  background: #f2f8e8;
-  border: 1px solid #c9e0a7;
+  background: #e6fcff;
+  border: 1px solid #79e2f2;
   border-radius: 4px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
     sans-serif;
-  font-size: 12px;
-  line-height: 1.4;
 }
 
 .fishhook-objectives-banner__text {
-  font-weight: 700;
-}
-
-.fishhook-objectives-banner__source {
-  color: #5e6c84;
-  font-size: 11px;
+  font-weight: 600;
 }
 
 .fishhook-objectives-banner__link {
-  color: #4f7900;
+  color: #3572b0;
   text-decoration: none;
 }
 
@@ -97,118 +92,235 @@
 .fishhook-objectives-restore {
   margin-left: auto;
   padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
   color: #172b4d;
   background: #fff;
   border: 1px solid #c1c7d0;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 700;
+  border-radius: 3px;
   cursor: pointer;
 }
 
 .fishhook-objectives-restore:hover {
-  color: rgb(120, 182, 0);
+  background: #f4f5f7;
 }
 
-.fishhook-objectives-content.markup,
-.fishhook-objectives-content.markup .wiki-content,
-.fishhook-objectives-content.markup .ak-renderer-document,
-.fishhook-objectives-content.markup p,
-.fishhook-objectives-content.markup li,
-.fishhook-objectives-content.markup td,
-.fishhook-objectives-content.markup th,
-.fishhook-objectives-content.markup span,
-.fishhook-objectives-content.markup div {
+.fishhook-objectives-inject.markup {
+  display: block !important;
+  visibility: visible !important;
+}
+
+.fishhook-objectives-loading {
+  color: #5e6c84;
+  font-style: italic;
+}
+
+.fishhook-objectives-fallback {
+  border-left: 3px solid #00ada9;
+  padding-left: 10px;
+}
+
+.fishhook-objectives-inject.markup img,
+.fishhook-objectives-body--adf img {
+  max-width: 100%;
+  height: auto;
+}
+
+.fishhook-objectives-inject.markup table,
+.fishhook-objectives-inject.markup table.wiki-table,
+.fishhook-objectives-body--adf table,
+.fishhook-objectives-body--adf table.wiki-table {
+  display: table !important;
+  border-collapse: collapse !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  table-layout: auto !important;
+  margin: 8px 0 !important;
+  visibility: visible !important;
+}
+
+.fishhook-objectives-inject.markup thead,
+.fishhook-objectives-body--adf thead {
+  display: table-header-group !important;
+}
+
+.fishhook-objectives-inject.markup tbody,
+.fishhook-objectives-body--adf tbody {
+  display: table-row-group !important;
+}
+
+.fishhook-objectives-inject.markup tr,
+.fishhook-objectives-body--adf tr {
+  display: table-row !important;
+}
+
+.fishhook-objectives-inject.markup th,
+.fishhook-objectives-inject.markup td,
+.fishhook-objectives-body--adf th,
+.fishhook-objectives-body--adf td {
+  display: table-cell !important;
+  border: 1px solid #ccc !important;
+  padding: 6px 8px !important;
+  vertical-align: top !important;
+  word-wrap: break-word !important;
+  overflow-wrap: anywhere !important;
+}
+
+.fishhook-objectives-inject.markup table th,
+.fishhook-objectives-body--adf table th {
+  background: #fafbfc;
+  font-weight: 600;
+}
+
+.fishhook-objectives-inject.markup .wiki-inline-code,
+.fishhook-objectives-inject.markup td code,
+.fishhook-objectives-inject.markup th code,
+.fishhook-objectives-body--adf .wiki-inline-code,
+.fishhook-objectives-body--adf td code,
+.fishhook-objectives-body--adf th code {
+  font-family: monospace, ui-monospace, Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  background: #f4f5f7;
+  border: 1px solid #dfe1e6;
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.fishhook-objectives-inject.markup pre:not([class^='code-']),
+.fishhook-objectives-body--adf pre:not([class^='code-']) {
+  overflow-x: auto;
+  background: #f5f5f5;
+  padding: 8px;
+  border-radius: 3px;
+}
+
+.fishhook-objectives-inject.markup a,
+.fishhook-objectives-body--adf a {
+  color: #3572b0;
+}
+
+.fishhook-objectives-inject.markup p.jira-wiki-h4-spacer,
+.fishhook-objectives-body--adf p.jira-wiki-h4-spacer {
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 1em !important;
+  min-height: 1em !important;
+  line-height: 1em !important;
+  font-size: inherit !important;
+  overflow: hidden !important;
+  border: 0 !important;
+}
+
+.fishhook-objectives-inject.markup h4,
+.fishhook-objectives-body--adf h4 {
+  display: block !important;
+  margin: 0 0 0.5em !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+}
+
+.fishhook-objectives-inject.markup ul,
+.fishhook-objectives-inject.markup ol,
+.fishhook-objectives-inject.markup ul.ak-ul,
+.fishhook-objectives-inject.markup ol.ak-ol,
+.fishhook-objectives-inject.markup [data-node-type='bulletList'] > ul,
+.fishhook-objectives-inject.markup [data-node-type='orderedList'] > ol,
+.fishhook-objectives-body--adf ul,
+.fishhook-objectives-body--adf ol,
+.fishhook-objectives-body--adf ul.ak-ul,
+.fishhook-objectives-body--adf ol.ak-ol,
+.fishhook-objectives-body--adf [data-node-type='bulletList'] > ul,
+.fishhook-objectives-body--adf [data-node-type='orderedList'] > ol {
+  display: block !important;
+  margin: 0.35em 0 0.65em !important;
+  padding-left: 1.75em !important;
+  list-style-position: outside !important;
+}
+
+.fishhook-objectives-inject.markup ul,
+.fishhook-objectives-inject.markup ul.ak-ul,
+.fishhook-objectives-inject.markup [data-node-type='bulletList'] > ul,
+.fishhook-objectives-body--adf ul,
+.fishhook-objectives-body--adf ul.ak-ul,
+.fishhook-objectives-body--adf [data-node-type='bulletList'] > ul {
+  list-style-type: disc !important;
+}
+
+.fishhook-objectives-inject.markup ol,
+.fishhook-objectives-inject.markup ol.ak-ol,
+.fishhook-objectives-inject.markup [data-node-type='orderedList'] > ol,
+.fishhook-objectives-body--adf ol,
+.fishhook-objectives-body--adf ol.ak-ol,
+.fishhook-objectives-body--adf [data-node-type='orderedList'] > ol {
+  list-style-type: decimal !important;
+}
+
+.fishhook-objectives-inject.markup ul ul,
+.fishhook-objectives-inject.markup ul.ak-ul ul.ak-ul,
+.fishhook-objectives-body--adf ul ul,
+.fishhook-objectives-body--adf ul.ak-ul ul.ak-ul {
+  list-style-type: circle !important;
+}
+
+.fishhook-objectives-inject.markup li,
+.fishhook-objectives-inject.markup li.ak-li,
+.fishhook-objectives-body--adf li,
+.fishhook-objectives-body--adf li.ak-li {
+  display: list-item !important;
+  list-style: inherit !important;
+  margin: 0.2em 0 !important;
+  padding-left: 0.15em !important;
+}
+
+.fishhook-objectives-inject.markup li > p,
+.fishhook-objectives-body--adf li > p {
+  margin: 0 !important;
+  display: inline !important;
+}
+
+.fishhook-objectives-inject.markup,
+.fishhook-objectives-inject.markup .wiki-content,
+.fishhook-objectives-inject.markup .ak-renderer-document,
+.fishhook-objectives-inject.markup table,
+.fishhook-objectives-inject.markup tbody,
+.fishhook-objectives-inject.markup tr,
+.fishhook-objectives-body--adf,
+.fishhook-objectives-body--adf .wiki-content,
+.fishhook-objectives-body--adf .ak-renderer-document,
+.fishhook-objectives-body--adf table,
+.fishhook-objectives-body--adf tbody,
+.fishhook-objectives-body--adf tr,
+.fishhook-objectives-inject.markup p,
+.fishhook-objectives-inject.markup li,
+.fishhook-objectives-inject.markup td,
+.fishhook-objectives-inject.markup th,
+.fishhook-objectives-inject.markup span,
+.fishhook-objectives-inject.markup div,
+.fishhook-objectives-body--adf p,
+.fishhook-objectives-body--adf li,
+.fishhook-objectives-body--adf td,
+.fishhook-objectives-body--adf th,
+.fishhook-objectives-body--adf span,
+.fishhook-objectives-body--adf div {
   color: #172b4d !important;
   visibility: visible !important;
   opacity: 1 !important;
 }
 
-.fishhook-objectives-content.markup ul,
-.fishhook-objectives-content.markup ol {
+.fishhook-objectives-inject.markup .ak-renderer-document,
+.fishhook-objectives-body--adf .ak-renderer-document {
   display: block !important;
-  margin: 0.35em 0 0.65em !important;
-  padding-left: 1.75em !important;
-}
-
-.fishhook-objectives-content.markup li {
-  display: list-item !important;
-}
-
-.fishhook-objectives-content.markup .wiki-inline-code {
-  padding: 0 4px;
-  background: #f4f5f7;
-  border: 1px solid #dfe1e6;
-  border-radius: 3px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
-}
-
-.fishhook-objectives-content.markup .code.panel {
-  margin: 10px 0;
-  border: 1px solid #c1c7d0;
-  border-radius: 4px;
-  background: #f7f8fa;
-}
-
-.fishhook-objectives-content.markup .codeContent.panelContent {
-  padding: 10px 12px;
-  overflow-x: auto;
-}
-
-.fishhook-objectives-content.markup .codeContent pre {
-  margin: 0;
-  white-space: pre;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.fishhook-objectives-content.markup .code-quote,
-.fishhook-objectives-content.markup .code-string {
-  color: #00875a;
-}
-
-.fishhook-objectives-content.markup .code-keyword {
-  color: #0747a6;
-  font-weight: 700;
-}
-
-.fishhook-objectives-content.markup .code-comment {
-  color: #6b778c;
-}
-
-.fishhook-objectives-content.markup .wiki-table {
-  width: auto;
-  max-width: 100%;
-  border-collapse: collapse;
-  margin: 10px 0;
-}
-
-.fishhook-objectives-content.markup .wiki-table th,
-.fishhook-objectives-content.markup .wiki-table td {
-  padding: 6px 8px;
-  border: 1px solid #dfe1e6;
-  vertical-align: top;
 }
 
 .fishhook-media-placeholder {
   display: inline-block;
-  margin: 0 2px;
-  padding: 1px 5px;
+  padding: 2px 6px;
+  font-size: 12px;
   color: #5e6c84;
   background: #f4f5f7;
-  border: 1px solid #dfe1e6;
+  border: 1px dashed #c1c7d0;
   border-radius: 3px;
-  font-size: 12px;
-}
-
-.fishhook-h4-spacer {
-  height: 1em !important;
-  min-height: 1em !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  overflow: hidden !important;
 }
 
 .fishhook-toast {

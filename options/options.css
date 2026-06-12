@@ -143,7 +143,7 @@ h2 {
   line-height: 1.2;
 }
 
-input,
+input:not([type='checkbox']),
 select {
   width: 100%;
   min-height: 48px;
@@ -159,7 +159,7 @@ select {
   transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
 }
 
-input::placeholder {
+input:not([type='checkbox'])::placeholder {
   color: #91a27c;
 }
 
@@ -176,24 +176,24 @@ select {
   cursor: pointer;
 }
 
-input:hover,
+input:not([type='checkbox']):hover,
 select:hover {
   border-color: var(--fh-primary);
 }
 
-input:focus,
+input:not([type='checkbox']):focus,
 select:focus {
   background: #ffffff;
   border-color: var(--fh-primary);
   box-shadow: 0 0 0 4px var(--fh-focus);
 }
 
-input.is-invalid {
+input:not([type='checkbox']).is-invalid {
   border-color: var(--fh-danger);
   background: #fff9f8;
 }
 
-input.is-invalid:focus {
+input:not([type='checkbox']).is-invalid:focus {
   border-color: var(--fh-danger);
   box-shadow: 0 0 0 4px rgba(201, 52, 34, 0.16);
 }
@@ -213,6 +213,35 @@ input.is-invalid:focus {
   display: flex;
   justify-content: flex-end;
   margin-top: 22px;
+}
+
+.toggle-card {
+  margin-top: 18px;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-row input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 18px;
+  accent-color: var(--fh-primary);
+  cursor: pointer;
+}
+
+.toggle-row span {
+  line-height: 1.45;
+  font-size: 14px;
+  color: var(--fh-text);
 }
 
 .primary-button {

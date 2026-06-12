@@ -3,15 +3,7 @@ extension:
   description: Fisheye에서 Jira 내용을 보여줍니다.
 
 popup:
-  activatePage: 현재 페이지에 적용
   openOptions: 환경설정 열기
-  activated: 현재 페이지에 FishHook을 적용했습니다.
-  activateFailed: 현재 페이지에 FishHook을 적용하지 못했습니다.
-  fisheyeUrlRequired: Fisheye 경로를 먼저 설정해 주세요.
-  jiraUrlRequired: Jira 경로를 먼저 설정해 주세요.
-  notFisheyePage: 설정된 Fisheye 페이지를 먼저 열어 주세요.
-  permissionRequired: 사이트 접근 권한이 필요합니다.
-  unsupportedPage: 지원하지 않는 페이지입니다.
 
 options:
   title: 환경설정
@@ -32,6 +24,9 @@ options:
     invalid: 올바른 Fisheye URL을 입력해 주세요.
   save: 저장
   saving: 저장 중
+  objectivesButton:
+    label: Objectives 버튼
+    enable: Fisheye Objectives 옆에 Jira 불러오기 버튼 표시
 
 toast:
   saved: 저장했습니다.
@@ -40,6 +35,8 @@ toast:
   invalidFisheyeUrl: Fisheye 경로를 확인해 주세요.
   loadFailed: 설정을 불러오지 못했습니다.
   saveFailed: 설정을 저장하지 못했습니다.
+  objectivesButtonEnabled: Objectives 불러오기 버튼을 표시합니다.
+  objectivesButtonDisabled: Objectives 불러오기 버튼을 숨깁니다.
   close: 닫기
 
 objectives:

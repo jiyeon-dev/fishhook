@@ -1,6 +1,7 @@
 'use strict';
 
 const JIRA_URL_STORAGE_KEY = 'fishhook.jiraBaseUrl';
+const SHOW_OBJECTIVES_BUTTON_KEY = 'fishhook.showObjectivesButton';
 const LOG = '[fishhook][background]';
 
 function normalizeBaseUrl(raw) {
@@ -106,10 +107,6 @@ function parseIssueDescription(json) {
   return null;
 }
 
-async function hasOriginPermission(origin) {
-  return chrome.permissions.contains({ origins: [`${origin}/*`] });
-}
-
 async function fetchJiraIssue(issueKey) {
   const key = String(issueKey || '').trim().toUpperCase();
   if (!/^[A-Z][A-Z0-9]+-\d+$/.test(key)) {
@@ -119,12 +116,6 @@ async function fetchJiraIssue(issueKey) {
   const jiraBaseUrl = await getJiraBaseUrl();
   if (!jiraBaseUrl) {
     return { ok: false, error: 'JIRA_URL_NOT_CONFIGURED' };
-  }
-
-  const jiraOrigin = new URL(jiraBaseUrl).origin;
-  const hasPermission = await hasOriginPermission(jiraOrigin);
-  if (!hasPermission) {
-    return { ok: false, error: 'JIRA_PERMISSION_REQUIRED', jiraBaseUrl };
   }
 
   const issueUrl = `${jiraBaseUrl}/browse/${encodeURIComponent(key)}`;
@@ -165,7 +156,6 @@ async function fetchJiraIssue(issueKey) {
           ok: true,
           issueKey: key,
           issueUrl,
-          source: `jira-api-${version}`,
           ...parsed,
         };
       }
@@ -184,4 +174,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     .then((result) => sendResponse(result))
     .catch((error) => sendResponse({ ok: false, error: String(error) }));
   return true;
+});
+
+chrome.runtime.onInstalled.addListener(async () => {
+  try {
+    const data = await chrome.storage.sync.get(SHOW_OBJECTIVES_BUTTON_KEY);
+    if (!Object.prototype.hasOwnProperty.call(data, SHOW_OBJECTIVES_BUTTON_KEY)) {
+      await chrome.storage.sync.set({ [SHOW_OBJECTIVES_BUTTON_KEY]: true });
+    }
+  } catch (error) {
+    console.warn(LOG, 'Failed to initialize default settings.', error);
+  }
 });

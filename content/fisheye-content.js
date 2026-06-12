@@ -10,12 +10,19 @@
   const OBJECTIVES_HEADING_SELECTOR = 'h4.overview-heading';
   const OBJECTIVES_EDIT_SELECTOR = 'a.edit-objectives.edit-link, a.edit-objectives';
   const FISHEYE_URL_STORAGE_KEY = 'fishhook.fisheyeBaseUrl';
-  const JIRA_URL_STORAGE_KEY = 'fishhook.jiraBaseUrl';
+  const SHOW_OBJECTIVES_BUTTON_KEY = 'fishhook.showObjectivesButton';
+  const LANGUAGE_STORAGE_KEY = 'fishhook.language';
   const LOG = '[fishhook][fisheye]';
+  let activeLanguage = 'en';
   let objectivesMissingLogged = false;
   let objectivesBodyEl = null;
   let objectivesOriginalHtml = '';
   let objectivesInjected = false;
+  let objectivesLoadEnabled = true;
+  let objectivesWatchStarted = false;
+  let objectivesObserver = null;
+  let objectivesRetryTimer = null;
+  let objectivesInjectTimer = null;
 
   const messages = {
     ko: {
@@ -51,16 +58,46 @@
   const ISSUE_KEY_AT_START_RE = /^\s*([A-Z][A-Z0-9]+-\d+)\b/i;
   const ISSUE_KEY_TOKEN_RE = /\b([A-Z][A-Z0-9]+-\d+)\b/gi;
 
-  function resolveLanguage() {
-    const lang = String(document.documentElement.lang || navigator.language || '')
-      .trim()
-      .toLowerCase()
-      .split('-')[0];
-    return lang === 'ko' ? 'ko' : 'en';
+  function resolveBrowserLanguage() {
+    const candidates = Array.isArray(navigator.languages) && navigator.languages.length
+      ? navigator.languages
+      : [navigator.language || 'en'];
+    for (const candidate of candidates) {
+      const code = String(candidate || '')
+        .trim()
+        .toLowerCase()
+        .split('-')[0];
+      if (code === 'ko' || code === 'en') return code;
+    }
+    return 'en';
+  }
+
+  function resolveStoredLanguage(raw) {
+    if (raw === 'ko' || raw === 'en') return raw;
+    return resolveBrowserLanguage();
+  }
+
+  async function refreshActiveLanguage() {
+    try {
+      const data = await chrome.storage.sync.get(LANGUAGE_STORAGE_KEY);
+      activeLanguage = resolveStoredLanguage(data[LANGUAGE_STORAGE_KEY]);
+    } catch (_) {
+      activeLanguage = resolveBrowserLanguage();
+    }
   }
 
   function t(key) {
-    return messages[resolveLanguage()][key] || messages.en[key] || key;
+    return messages[activeLanguage]?.[key] || messages.en[key] || key;
+  }
+
+  function refreshObjectivesButtonLabels() {
+    document.querySelectorAll(`.${BUTTON_CLASS}`).forEach((button) => {
+      button.setAttribute('aria-label', t('loadAriaLabel'));
+      button.title = t('loadTitle');
+      if (button.classList.contains(FALLBACK_CLASS)) {
+        button.textContent = t('fallbackText');
+      }
+    });
   }
 
   function getExtensionUrl(path) {
@@ -108,12 +145,47 @@
 
   async function getConfiguredJiraBaseUrl() {
     try {
-      const data = await chrome.storage.sync.get(JIRA_URL_STORAGE_KEY);
-      return normalizeBaseUrl(data[JIRA_URL_STORAGE_KEY]);
+      const data = await chrome.storage.sync.get('fishhook.jiraBaseUrl');
+      return normalizeBaseUrl(data['fishhook.jiraBaseUrl']);
     } catch (error) {
       console.warn(LOG, 'Failed to read Jira settings.', error);
       return null;
     }
+  }
+
+  async function getShowObjectivesButton() {
+    try {
+      const data = await chrome.storage.sync.get(SHOW_OBJECTIVES_BUTTON_KEY);
+      if (!Object.prototype.hasOwnProperty.call(data, SHOW_OBJECTIVES_BUTTON_KEY)) {
+        return true;
+      }
+      return data[SHOW_OBJECTIVES_BUTTON_KEY] === true;
+    } catch (error) {
+      console.warn(LOG, 'Failed to read Objectives button setting.', error);
+      return true;
+    }
+  }
+
+  function removeObjectivesButtons() {
+    document.querySelectorAll(`.${BUTTON_CLASS}`).forEach((button) => button.remove());
+  }
+
+  function stopObjectivesWatch() {
+    removeObjectivesButtons();
+    objectivesMissingLogged = false;
+    if (objectivesObserver) {
+      objectivesObserver.disconnect();
+      objectivesObserver = null;
+    }
+    if (objectivesRetryTimer) {
+      window.clearInterval(objectivesRetryTimer);
+      objectivesRetryTimer = null;
+    }
+    if (objectivesInjectTimer) {
+      window.clearTimeout(objectivesInjectTimer);
+      objectivesInjectTimer = null;
+    }
+    objectivesWatchStarted = false;
   }
 
   function logObjectivesMissing() {
@@ -161,7 +233,26 @@
       }
     }
 
-    return objectivesFallback || anyFallback;
+    if (objectivesFallback || anyFallback) {
+      return objectivesFallback || anyFallback;
+    }
+
+    const markup = findObjectivesMarkup();
+    if (!markup) return null;
+
+    let root = markup.parentElement;
+    while (root) {
+      const heading = root.querySelector?.(OBJECTIVES_HEADING_SELECTOR);
+      if (heading) {
+        return {
+          heading,
+          editLink: heading.querySelector(OBJECTIVES_EDIT_SELECTOR) || null,
+        };
+      }
+      root = root.parentElement;
+    }
+
+    return null;
   }
 
   function findObjectivesMarkup() {
@@ -291,17 +382,13 @@
     objectivesInjected = false;
   }
 
-  function buildOverviewBanner(issueKey, issueUrl, sourceLabel) {
-    const source = sourceLabel
-      ? `<span class="fishhook-objectives-banner__source">${escapeHtml(sourceLabel)}</span>`
-      : '';
+  function buildOverviewBanner(issueKey, issueUrl) {
     const link = issueUrl
       ? `<a class="fishhook-objectives-banner__link" href="${escapeHtml(issueUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('openJira'))}</a>`
       : '';
     return (
       `<div class="fishhook-objectives-banner" role="status">` +
       `<span class="fishhook-objectives-banner__text">${escapeHtml(issueKey)} · ${escapeHtml(t('previewBanner'))}</span>` +
-      source +
       link +
       `<button type="button" class="fishhook-objectives-restore">${escapeHtml(t('restore'))}</button>` +
       `</div>`
@@ -309,15 +396,24 @@
   }
 
   function renderJiraBody(data) {
+    if (data.loading) {
+      return `<p class="wiki-p fishhook-objectives-loading">${escapeHtml(data.text || t('loading'))}</p>`;
+    }
+
     const html = String(data.html || '').trim();
     const text = String(data.text || '').trim();
+    let bodyHtml = '';
     if (html) {
-      return window.FishHookDescriptionRenderer?.render
+      bodyHtml = window.FishHookDescriptionRenderer?.render
         ? window.FishHookDescriptionRenderer.render(html)
         : html;
+    } else if (text) {
+      bodyHtml = `<div class="wiki-content fishhook-objectives-fallback"><p class="wiki-p">${escapeHtml(text).replace(/\n/g, '<br>')}</p></div>`;
+    } else {
+      bodyHtml = `<p class="wiki-p">${escapeHtml(t('loadFailed'))}</p>`;
     }
-    if (text) return `<div class="fishhook-jira-content"><p>${escapeHtml(text).replace(/\n/g, '<br>')}</p></div>`;
-    return `<p>${escapeHtml(t('loadFailed'))}</p>`;
+
+    return `<div class="fishhook-objectives-body fishhook-objectives-body--adf">${bodyHtml}</div>`;
   }
 
   function showObjectivesContent(data, issueKey, issueUrl) {
@@ -335,10 +431,9 @@
     }
 
     host.classList.add('fishhook-objectives-host');
-    const sourceLabel = data.loading ? t('loading') : data.source || '';
     host.innerHTML =
-      buildOverviewBanner(issueKey, issueUrl || data.issueUrl, sourceLabel) +
-      `<div class="fishhook-objectives-content markup">${renderJiraBody(data)}</div>`;
+      buildOverviewBanner(issueKey, issueUrl || data.issueUrl) +
+      `<div class="fishhook-objectives-inject markup">${renderJiraBody(data)}</div>`;
 
     host.querySelector('.fishhook-objectives-restore')?.addEventListener('click', restoreObjectivesBody);
     return true;
@@ -373,6 +468,8 @@
   }
 
   async function loadJiraIntoObjectives(button) {
+    await refreshActiveLanguage();
+
     const jiraBaseUrl = await getConfiguredJiraBaseUrl();
     if (!jiraBaseUrl) {
       showToast(t('jiraUrlRequired'), 'error');
@@ -453,6 +550,8 @@
   }
 
   function injectObjectivesButton() {
+    if (!objectivesLoadEnabled) return false;
+
     const found = findObjectivesHeading();
     if (!found) {
       logObjectivesMissing();
@@ -472,26 +571,106 @@
   }
 
   function scheduleInject() {
-    window.clearTimeout(scheduleInject.timer);
-    scheduleInject.timer = window.setTimeout(injectObjectivesButton, 120);
+    window.clearTimeout(objectivesInjectTimer);
+    objectivesInjectTimer = window.setTimeout(injectObjectivesButton, 120);
   }
 
   window.FishHookObjectivesButton = {
     inject: injectObjectivesButton,
   };
 
-  async function init() {
-    const fisheyeBaseUrl = await getConfiguredFisheyeBaseUrl();
-    if (!fisheyeBaseUrl) return;
-    if (!isCurrentFisheyePage(fisheyeBaseUrl)) return;
-
-    injectObjectivesButton();
-
-    const observer = new MutationObserver(scheduleInject);
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+  function isFisheyeCruPage() {
+    return /\/cru(?:\/|$)/i.test(window.location.pathname);
   }
 
-  init().catch((error) => {
+  function isPageEligible(fisheyeBaseUrl) {
+    return Boolean(fisheyeBaseUrl && isCurrentFisheyePage(fisheyeBaseUrl) && isFisheyeCruPage());
+  }
+
+  function startObjectivesWatch() {
+    if (!objectivesLoadEnabled) return;
+    injectObjectivesButton();
+    if (objectivesWatchStarted) return;
+    objectivesWatchStarted = true;
+
+    objectivesObserver = new MutationObserver(scheduleInject);
+    objectivesObserver.observe(document.documentElement, { childList: true, subtree: true });
+
+    let attempts = 0;
+    objectivesRetryTimer = window.setInterval(() => {
+      if (!objectivesLoadEnabled) {
+        stopObjectivesWatch();
+        return;
+      }
+      if (document.querySelector(`.${BUTTON_CLASS}`)) {
+        window.clearInterval(objectivesRetryTimer);
+        objectivesRetryTimer = null;
+        return;
+      }
+      injectObjectivesButton();
+      attempts += 1;
+      if (attempts >= 60) {
+        window.clearInterval(objectivesRetryTimer);
+        objectivesRetryTimer = null;
+        logObjectivesMissing();
+      }
+    }, 500);
+  }
+
+  function syncObjectivesButton(fisheyeBaseUrl) {
+    if (!isPageEligible(fisheyeBaseUrl)) {
+      stopObjectivesWatch();
+      return;
+    }
+    if (objectivesLoadEnabled) {
+      startObjectivesWatch();
+    } else {
+      stopObjectivesWatch();
+    }
+  }
+
+  async function initObjectivesButtonFeature() {
+    await refreshActiveLanguage();
+
+    const fisheyeBaseUrl = await getConfiguredFisheyeBaseUrl();
+    objectivesLoadEnabled = await getShowObjectivesButton();
+    syncObjectivesButton(fisheyeBaseUrl);
+
+    if (!isExtensionContextValid()) return;
+
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'sync') return;
+
+      if (changes[SHOW_OBJECTIVES_BUTTON_KEY]) {
+        objectivesLoadEnabled = changes[SHOW_OBJECTIVES_BUTTON_KEY].newValue === true;
+        getConfiguredFisheyeBaseUrl().then((nextFisheyeBaseUrl) => {
+          syncObjectivesButton(nextFisheyeBaseUrl);
+        });
+      }
+
+      if (changes[FISHEYE_URL_STORAGE_KEY]) {
+        getConfiguredFisheyeBaseUrl().then((nextFisheyeBaseUrl) => {
+          syncObjectivesButton(nextFisheyeBaseUrl);
+        });
+      }
+
+      if (changes[LANGUAGE_STORAGE_KEY]) {
+        refreshActiveLanguage().then(() => {
+          refreshObjectivesButtonLabels();
+        });
+      }
+    });
+  }
+
+  function isExtensionContextValid() {
+    try {
+      return Boolean(chrome.runtime?.id);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  initObjectivesButtonFeature().catch((error) => {
     console.warn(LOG, 'Failed to initialize Fisheye content script.', error);
   });
 })();

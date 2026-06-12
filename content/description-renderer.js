@@ -220,11 +220,140 @@
     return false;
   }
 
-  function normalizeInlineCode(doc) {
+  function unescapeWikiInlineContent(text) {
+    return String(text || '')
+      .replace(/\\\[/g, '[')
+      .replace(/\\\]/g, ']')
+      .replace(/\\\{/g, '{')
+      .replace(/\\\}/g, '}')
+      .replace(/\\#/g, '#');
+  }
+
+  function splitWikiInlineMarkup(text) {
+    const parts = [];
+    const source = String(text ?? '');
+    let index = 0;
+
+    while (index < source.length) {
+      if (source[index] === '{' && source[index + 1] === '{') {
+        const open = index;
+        index += 2;
+        let inner = '';
+        let closed = false;
+        while (index < source.length) {
+          if (source[index] === '\\' && index + 1 < source.length) {
+            inner += source[index + 1];
+            index += 2;
+            continue;
+          }
+          if (source[index] === '}' && source[index + 1] === '}') {
+            index += 2;
+            closed = true;
+            break;
+          }
+          inner += source[index];
+          index += 1;
+        }
+        if (closed) {
+          parts.push({ type: 'code', value: unescapeWikiInlineContent(inner) });
+        } else {
+          parts.push({ type: 'text', value: source.slice(open, index) });
+        }
+        continue;
+      }
+
+      if (source[index] === '`') {
+        const open = index;
+        index += 1;
+        let inner = '';
+        let closed = false;
+        while (index < source.length) {
+          if (source[index] === '\\' && index + 1 < source.length) {
+            inner += source[index + 1];
+            index += 2;
+            continue;
+          }
+          if (source[index] === '`') {
+            index += 1;
+            closed = true;
+            break;
+          }
+          inner += source[index];
+          index += 1;
+        }
+        if (closed) {
+          parts.push({ type: 'code', value: unescapeWikiInlineContent(inner) });
+        } else {
+          parts.push({ type: 'text', value: source.slice(open, index) });
+        }
+        continue;
+      }
+
+      let next = source.length;
+      const brace = source.indexOf('{{', index);
+      const tick = source.indexOf('`', index);
+      if (brace !== -1) next = Math.min(next, brace);
+      if (tick !== -1) next = Math.min(next, tick);
+      if (next > index) parts.push({ type: 'text', value: source.slice(index, next) });
+      index = next;
+    }
+
+    return parts;
+  }
+
+  function appendWikiInlineMarkupParts(doc, fragment, parts) {
+    parts.forEach((part) => {
+      if (part.type === 'code') {
+        const code = doc.createElement('code');
+        code.className = 'wiki-inline-code';
+        code.textContent = part.value;
+        fragment.appendChild(code);
+        return;
+      }
+      if (part.value) fragment.appendChild(doc.createTextNode(part.value));
+    });
+  }
+
+  function replaceTextNodeWithWikiInlineMarkup(doc, textNode) {
+    const parts = splitWikiInlineMarkup(textNode.textContent);
+    if (!parts.some((part) => part.type === 'code')) return false;
+
+    const fragment = doc.createDocumentFragment();
+    appendWikiInlineMarkupParts(doc, fragment, parts);
+    textNode.parentNode.replaceChild(fragment, textNode);
+    return true;
+  }
+
+  function normalizeInlineCodeElements(doc) {
     doc.querySelectorAll('code, kbd').forEach((el) => {
       if (el.closest('pre') || el.closest('.code.panel')) return;
       el.className = 'wiki-inline-code';
     });
+  }
+
+  function canFlattenTableCellMarkup(cell) {
+    if (cell.querySelector('table, pre, .code.panel, img, a')) return false;
+    return true;
+  }
+
+  function normalizeTableCellInlineCode(doc) {
+    doc.querySelectorAll('table td, table th').forEach((cell) => {
+      if (cell.querySelector('.wiki-inline-code')) return;
+
+      const text = cell.textContent || '';
+      if (!text.includes('{{') && !text.includes('`')) return;
+
+      const parts = splitWikiInlineMarkup(text);
+      if (!parts.some((part) => part.type === 'code')) return;
+      if (!canFlattenTableCellMarkup(cell)) return;
+
+      cell.textContent = '';
+      appendWikiInlineMarkupParts(doc, cell, parts);
+    });
+  }
+
+  function normalizeInlineCode(doc) {
+    normalizeInlineCodeElements(doc);
 
     const textNodes = [];
     const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
@@ -237,33 +366,18 @@
     }
 
     textNodes.forEach((textNode) => {
-      const text = textNode.textContent;
-      const fragment = doc.createDocumentFragment();
-      let index = 0;
-      const regex = /(\{\{([^]*?)\}\}|`([^`]+)`)/g;
-      let match;
-      let found = false;
-      while ((match = regex.exec(text)) !== null) {
-        found = true;
-        if (match.index > index) fragment.appendChild(doc.createTextNode(text.slice(index, match.index)));
-        const code = doc.createElement('code');
-        code.className = 'wiki-inline-code';
-        code.textContent = match[2] || match[3] || '';
-        fragment.appendChild(code);
-        index = match.index + match[0].length;
-      }
-      if (!found) return;
-      if (index < text.length) fragment.appendChild(doc.createTextNode(text.slice(index)));
-      textNode.parentNode.replaceChild(fragment, textNode);
+      replaceTextNodeWithWikiInlineMarkup(doc, textNode);
     });
+
+    normalizeTableCellInlineCode(doc);
   }
 
   function addHeadingSpacers(doc) {
     doc.querySelectorAll('h4').forEach((h4) => {
       const previous = h4.previousElementSibling;
-      if (previous?.classList?.contains('fishhook-h4-spacer')) return;
+      if (previous?.classList?.contains('jira-wiki-h4-spacer')) return;
       const spacer = doc.createElement('p');
-      spacer.className = 'fishhook-h4-spacer';
+      spacer.className = 'jira-wiki-h4-spacer';
       spacer.setAttribute('aria-hidden', 'true');
       h4.parentNode.insertBefore(spacer, h4);
     });

@@ -127,7 +127,7 @@
 
     if (html) {
       body.innerHTML = window.FishHookDescriptionRenderer?.render
-        ? window.FishHookDescriptionRenderer.render(html)
+        ? window.FishHookDescriptionRenderer.render(html, { videoMode: 'placeholder' })
         : html;
       const visibleLen = (body.textContent || '').trim().length;
       if ((!visibleLen || visibleLen < 3) && text) {
@@ -142,6 +142,10 @@
         `${escapeHtml(labels.emptyLoginPrefix)}(<code>${host}</code>)${escapeHtml(labels.emptyLoginSuffix)}<br>` +
         `${escapeHtml(labels.emptyBrowseHint)}</p>`;
     }
+
+    window.FishHookMediaLoader?.hydrate(body)?.catch((error) => {
+      console.warn('[fishhook][desc-panel] Failed to hydrate Jira media.', error);
+    });
   }
 
   function resolvePanelTitle(issueTitle, issueKey, loading, labels) {

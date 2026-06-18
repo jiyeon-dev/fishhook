@@ -37,9 +37,14 @@ Fisheye page
 - Wiki 변환/미리보기
 - Jira 페이지 전용 floating action button
 - 옵션 페이지의 사이트 추가/삭제 UI
-- 이미지/동영상 placeholder 제외 옵션
-- 기존 방식의 Fisheye Objectives 수동 불러오기 버튼
+- 기존 방식의 Fisheye Objectives 수동 불러오기 텍스트 버튼
 - `JIRA_WIKI_*` 네이밍
+
+미디어 관련 참고:
+
+- Objectives에서는 Jira 첨부 동영상을 재생한다.
+- Description 미리보기 패널에서는 동영상을 `[VIDEO]` placeholder로만 표시한다.
+- 상세 설계는 [jira-media-handling.md](./jira-media-handling.md)를 참고한다.
 
 ## 남길 기능 경계
 
@@ -75,19 +80,20 @@ harness/fixtures/fisheye-review-no-key.html
 역할:
 
 - issue key를 받아 Jira 내용 HTML/text를 가져온다.
-- 먼저 Jira REST API를 시도한다.
-- API가 실패하거나 Description이 비어 있으면 browse 페이지 DOM scraping fallback을 고려한다.
+- Jira REST API (`fields=summary,description,attachment`, `expand=renderedFields`)를 사용한다.
+- ADF media 노드와 첨부파일 목록을 매칭해 rendered HTML의 error span을 보정한다.
+- `includeVideo` 옵션으로 Objectives(동영상 재생)와 미리보기(`[VIDEO]` placeholder)를 구분한다.
 - 로그인/권한/네트워크 실패를 구분 가능한 에러로 반환한다.
 
 기존 참고 파일:
 
 - `/Users/avocado/Documents/jira-preview-main/background.js`
 
-분리 후보:
+현재 구현 파일:
 
 ```text
-src/jira/fetch-description.js
-src/extension/background.js
+background.js
+docs/jira-media-handling.md
 ```
 
 검증 하네스:
@@ -105,6 +111,7 @@ harness/jira-fetch-mock.html
 
 - Fisheye의 Objectives 영역을 찾는다.
 - 찾은 Jira 내용을 Objectives 영역에 붙여 넣어 보여준다.
+- Jira 이미지·동영상 첨부를 `media-loader.js`로 인증 fetch 후 표시한다.
 - 원래 Objectives 내용을 복원할 수 있어야 한다.
 - 주입된 내용은 Fisheye 서버에 저장하지 않는 preview/injection으로 취급한다.
 
@@ -143,8 +150,10 @@ Objectives 상태:
 역할:
 
 - Fisheye 우측 하단에 고정 패널을 표시한다.
-- Jira issue key, Jira 링크, Jira 내용, 상태 메시지를 보여준다.
-- 닫기와 새로고침 액션을 제공한다.
+- Jira issue key, Jira 링크, Jira Description 본문, 상태 메시지를 보여준다.
+- 동영상은 재생하지 않고 `[VIDEO]` placeholder만 표시한다.
+- 이미지는 Objectives와 동일하게 인증 fetch 후 표시한다.
+- 닫기와 Jira 열기 링크를 제공한다.
 
 기존 참고 파일:
 
@@ -241,23 +250,16 @@ i18n 완료 기준:
 
 ## 권한 설계
 
-현재 `manifest.json`은 보안을 위해 다음 형태로 시작한다.
+현재 `manifest.json`은 아래 형태다.
 
 ```json
 {
-  "host_permissions": []
+  "host_permissions": ["http://*/*", "https://*/*"]
 }
 ```
 
-초기 하네스 단계에서는 실제 host permission 없이 동작 가능한 설계를 우선한다.
-
-추후 실제 Jira/Fisheye 연동 시에는 다음 중 하나를 결정한다.
-
-- 사용자가 특정 도메인을 입력하고 runtime permission을 승인한다.
-- 조직 내 고정 도메인을 manifest에 명시한다.
-- development build와 production build의 permission 정책을 분리한다.
-
-이 결정 전까지 하네스는 mock 데이터와 fixture HTML로 검증한다.
+Jira REST API와 첨부파일 fetch 모두 extension host permission과 브라우저 Jira 로그인 세션에 의존한다.
+하네스 단계에서는 mock 응답으로 fetch·렌더 파이프라인을 검증할 수 있다.
 
 ## 메시지 네이밍
 
@@ -283,6 +285,8 @@ fishHook/
 
   docs/
     harness-engineering-plan.md
+    jira-media-handling.md
+    objectives-icon-button-design.md
 
   src/
     fisheye/
@@ -404,6 +408,8 @@ fishHook/
 - Jira API 성공 응답 파싱
 - rendered description 파싱
 - ADF description fallback 파싱
+- ADF media + attachment 매칭
+- `includeVideo: false` 시 `[VIDEO]` placeholder 생성
 - HTTP 에러 상태 반환
 - Description 없음 상태 반환
 
@@ -418,8 +424,8 @@ fishHook/
 
 - Fisheye 페이지에서 Jira issue key 자동 추출
 - Jira 내용 로딩
-- Jira 내용을 Objectives 영역에 표시
-- Jira 내용을 우측 하단 패널에 표시
+- Jira 내용을 Objectives 영역에 표시 (동영상 재생 포함)
+- Jira 내용을 우측 하단 패널에 표시 (동영상은 `[VIDEO]`)
 - 실패 시 사용자가 이해할 수 있는 메시지 표시
 
 ## 초기 개발 원칙

@@ -323,6 +323,44 @@
   border-radius: 3px;
 }
 
+.fishhook-jira-video {
+  display: block;
+  max-width: 100%;
+  margin: 8px 0;
+  border-radius: 4px;
+  background: #091e42;
+}
+
+.fishhook-jira-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 8px 0;
+  border-radius: 4px;
+}
+
+.fishhook-jira-media--loading {
+  min-height: 120px;
+  background: linear-gradient(90deg, #f4f5f7 25%, #ebecf0 50%, #f4f5f7 75%);
+  background-size: 200% 100%;
+  animation: fishhook-media-shimmer 1.2s ease-in-out infinite;
+}
+
+.fishhook-jira-media--failed {
+  min-height: auto;
+  background: #fff4f4;
+  border: 1px dashed #de350b;
+}
+
+@keyframes fishhook-media-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 .fishhook-toast {
   position: fixed;
   right: 16px;

@@ -491,6 +491,13 @@
     );
   }
 
+  function hydrateInjectedMedia(root) {
+    if (!root) return;
+    window.FishHookMediaLoader?.hydrate(root)?.catch((error) => {
+      console.warn(LOG, 'Failed to hydrate Jira media.', error);
+    });
+  }
+
   function renderJiraBody(data) {
     if (data.loading) {
       return `<p class="wiki-p fishhook-objectives-loading">${escapeHtml(data.text || t('loading'))}</p>`;
@@ -532,13 +539,20 @@
       `<div class="fishhook-objectives-inject markup">${renderJiraBody(data)}</div>`;
 
     host.querySelector('.fishhook-objectives-restore')?.addEventListener('click', restoreObjectivesBody);
+    hydrateInjectedMedia(host);
     return true;
   }
 
-  async function fetchJiraContent(issueKey) {
+  async function fetchJiraContent(issueKey, options = {}) {
     return new Promise((resolve) => {
       try {
-        chrome.runtime.sendMessage({ type: 'FISHHOOK_FETCH_JIRA_CONTENT', issueKey }, (response) => {
+        chrome.runtime.sendMessage(
+          {
+            type: 'FISHHOOK_FETCH_JIRA_CONTENT',
+            issueKey,
+            includeVideo: options.includeVideo !== false,
+          },
+          (response) => {
           if (chrome.runtime.lastError) {
             resolve({ ok: false, error: chrome.runtime.lastError.message });
             return;
@@ -619,7 +633,7 @@
       jiraHost,
     });
 
-    const data = await fetchJiraContent(issueKey);
+    const data = await fetchJiraContent(issueKey, { includeVideo: false });
     const payload = data.ok ? data : { ok: false, html: '', text: '', error: data.error };
     window.FishHookDescPanel?.updateAfterFetch(
       data,

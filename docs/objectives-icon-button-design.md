@@ -205,50 +205,30 @@ objectives:
 
 ## 권한 방향
 
-현재 `manifest.json`의 `host_permissions`는 빈 배열이다.
-따라서 Objectives 버튼 주입은 아래 둘 중 하나로 구현한다.
+현재 `manifest.json`은 아래 host permission을 사용한다.
 
-### 방식 A. popup 실행 시점 주입
-
-```text
-popup click
-  -> 현재 탭 URL 확인
-  -> Fisheye URL이면 필요한 권한 요청
-  -> content script 주입
-  -> Objectives 버튼 추가
-  -> 버튼 클릭 시 background에서 Jira API fetch
+```json
+{
+  "host_permissions": ["http://*/*", "https://*/*"]
+}
 ```
 
-장점:
-
-- 기본 권한을 넓히지 않는다.
-- 사용자가 명시적으로 실행할 때만 접근한다.
-
-단점:
-
-- 페이지 진입 시 자동으로 버튼이 보이지 않는다.
-
-### 방식 B. 저장된 Fisheye 경로 기반 runtime permission
-
-```text
-options에서 Fisheye URL 저장
-  -> 기능 실행 시 runtime permission 요청
-  -> 승인된 origin에서 content script 등록 또는 주입
-```
-
-장점:
-
-- 사용자가 허용한 사이트에서 자연스럽게 동작 가능하다.
-
-단점:
-
-- 권한 요청 UX 설계가 필요하다.
-
-초기 구현은 방식 A를 우선한다.
-
-Jira fetch는 background service worker에서 수행한다.
+Jira REST API fetch와 첨부파일 blob 로드 모두 이 권한 + 브라우저 Jira 세션(`credentials: 'include'`)에 의존한다.
 content script는 `FISHHOOK_FETCH_JIRA_CONTENT` 메시지로 issue key를 전달하고, background는 저장된 Jira URL로 Jira REST API를 호출한다.
+
+메시지 필드:
+
+```text
+type: FISHHOOK_FETCH_JIRA_CONTENT
+issueKey: KEY-123
+includeVideo: true | false   // 미리보기는 false, Objectives는 true(기본)
+```
+
 Jira API 응답이 `401`, `403`, 또는 JSON이 아닌 로그인 HTML이면 `JIRA_LOGIN_REQUIRED`로 간주한다.
+
+Objectives에 표시되는 동영상은 `media-loader.js`가 Jira 첨부파일을 인증 fetch한 뒤 재생한다.
+Description 미리보기 패널에서는 동영상을 `[VIDEO]` placeholder로만 표시한다.
+자세한 내용은 [jira-media-handling.md](./jira-media-handling.md)를 참고한다.
 
 ## 활성화 조건
 
@@ -291,6 +271,9 @@ console.info("[fishhook][fisheye]", "Configured Fisheye page matched, but the Ob
 ```text
 content/
   description-renderer.js
+  media-loader.js
+  desc-panel.js
+  desc-panel.css
   fisheye-content.js
   fisheye-content.css
 
@@ -308,12 +291,16 @@ src/ui/
 
 ```text
 content/description-renderer.js
+content/media-loader.js
+content/desc-panel.js
 content/fisheye-content.js
 content/fisheye-content.css
+content/desc-panel.css
 ```
 
 `description-renderer.js`는 Jira HTML 후처리를 담당한다.
-`fisheye-content.js`는 issue key 추출, Jira fetch 요청, Objectives 삽입만 담당한다.
+`media-loader.js`는 Jira 첨부파일을 인증 fetch로 blob URL에 올려 `<img>` / `<video>`에 연결한다.
+`fisheye-content.js`는 issue key 추출, Jira fetch 요청, Objectives 삽입, Description 미리보기 패널 진입점을 담당한다.
 
 후처리 범위:
 
@@ -321,8 +308,11 @@ content/fisheye-content.css
 - 코드 블록을 Fisheye 스타일 code panel로 변환
 - inline code 보정
 - table에 `wiki-table` 스타일 적용
-- blob 이미지/media placeholder 처리
+- blob 이미지 → `[image: 파일명]` placeholder
+- Jira error span / ADF media → 첨부파일 매칭 후 `<img>`, `<video>`, `[VIDEO]` 또는 `[media: ...]`
 - list/table/code block이 Fisheye CSS에 의해 숨겨지지 않도록 class와 CSS 보정
+
+미디어 처리 상세는 [jira-media-handling.md](./jira-media-handling.md)를 참고한다.
 
 ## 하네스
 
@@ -399,6 +389,8 @@ harness/fixtures/fisheye-objectives-missing.html
 - Jira URL이 없으면 우측 하단 오류 팝업이 표시된다.
 - Jira에 로그인되어 있지 않으면 우측 하단 오류 팝업이 표시된다.
 - Jira에 로그인되어 있는 경우에만 Objectives에 내용이 붙여 넣어진다.
+- Objectives에서 Jira 동영상 첨부가 `<video controls>`로 재생된다.
+- Description 미리보기 패널에서 동영상은 `[VIDEO]` placeholder로만 표시된다.
 - 실패 시 토스트 또는 Objectives 영역에 오류가 표시된다.
 - 기존 Objectives 내용을 복원할 수 있다.
 - i18n YAML에 한국어/영어 문구가 준비된다.

@@ -154,8 +154,31 @@ body.fishhook-desc-panel--resizing {
   background: #fafbfc;
   border-top: 1px solid #ebecf0;
   min-height: 0;
+  min-width: 0;
   display: block !important;
   visibility: visible !important;
+  box-sizing: border-box;
+}
+
+.fishhook-desc-panel__body .fishhook-objectives-body--adf,
+.fishhook-desc-panel__body .wiki-content,
+.fishhook-desc-panel__body .ak-renderer-document,
+.fishhook-desc-panel__body .fishhook-jira-media-group,
+.fishhook-desc-panel__body [data-node-type='mediaSingle'],
+.fishhook-desc-panel__body [data-testid='media-single'],
+.fishhook-desc-panel__body .media-single,
+.fishhook-desc-panel__body figure {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.fishhook-desc-panel__body .fishhook-jira-image,
+.fishhook-desc-panel__body img.fishhook-jira-media {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  box-sizing: border-box;
 }
 
 .fishhook-desc-panel__actions {

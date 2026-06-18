@@ -193,7 +193,19 @@
 
   function normalizeMedia(doc) {
     doc.querySelectorAll('[data-testid="media-badges"], table button').forEach((el) => el.remove());
+    doc.querySelectorAll('span.error').forEach((el) => {
+      if (el.closest('[data-fishhook-media-url], .fishhook-media-placeholder')) return;
+      const label = (el.textContent || 'media').trim() || 'media';
+      const placeholder = doc.createElement('span');
+      placeholder.className = 'fishhook-media-placeholder';
+      placeholder.textContent = `[media: ${label}]`;
+      el.replaceWith(placeholder);
+    });
     doc.querySelectorAll('img').forEach((img) => {
+      if (img.hasAttribute('data-fishhook-media-url')) {
+        img.classList.add('fishhook-jira-media', 'fishhook-jira-image', 'fishhook-jira-media--loading');
+        return;
+      }
       const src = img.getAttribute('src') || '';
       if (!src.startsWith('blob:')) return;
       const alt =
@@ -205,6 +217,22 @@
       placeholder.className = 'fishhook-media-placeholder';
       placeholder.textContent = `[image: ${alt}]`;
       img.replaceWith(placeholder);
+    });
+    doc.querySelectorAll('[data-node-type="mediaSingle"], [data-testid="media-single"], .media-single, figure').forEach(
+      (wrap) => {
+        wrap.style.maxWidth = '100%';
+        wrap.style.width = '100%';
+        wrap.style.boxSizing = 'border-box';
+      }
+    );
+    doc.querySelectorAll('video').forEach((video) => {
+      video.removeAttribute('width');
+      video.removeAttribute('height');
+      video.style.removeProperty('width');
+      video.style.removeProperty('height');
+      if (video.hasAttribute('data-fishhook-media-url')) {
+        video.classList.add('fishhook-jira-media', 'fishhook-jira-video', 'fishhook-jira-media--loading');
+      }
     });
   }
 
@@ -420,17 +448,30 @@
     });
   }
 
-  function render(html) {
+  function replaceVideosWithPlaceholder(doc) {
+    doc.querySelectorAll('video').forEach((video) => {
+      const placeholder = doc.createElement('span');
+      placeholder.className = 'fishhook-media-placeholder fishhook-video-placeholder';
+      placeholder.textContent = '[VIDEO]';
+      video.replaceWith(placeholder);
+    });
+  }
+
+  function render(html, options = {}) {
     if (!html || !String(html).trim()) return '';
     try {
       const doc = document.implementation.createHTMLDocument('');
       doc.body.innerHTML = String(html);
-      doc.querySelectorAll('script, style, link, meta, iframe, noscript').forEach((el) => el.remove());
+      doc.querySelectorAll('script, style, link, meta, noscript').forEach((el) => el.remove());
+      doc.querySelectorAll('iframe').forEach((el) => el.remove());
       convertCodeBlocks(doc);
       unwrapCodeWrappers(doc);
       ensureCodeContentWrapper(doc);
       normalizeTables(doc);
       normalizeMedia(doc);
+      if (options.videoMode === 'placeholder') {
+        replaceVideosWithPlaceholder(doc);
+      }
       stripOrphanWikiDelimitersAroundInlineCode(doc);
       normalizeInlineCode(doc);
       addHeadingSpacers(doc);

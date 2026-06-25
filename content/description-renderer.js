@@ -191,11 +191,19 @@
     });
   }
 
+  function isUnresolvedJiraMediaError(text) {
+    return /\^([a-f0-9-]+)/i.test(String(text || ''));
+  }
+
   function normalizeMedia(doc) {
     doc.querySelectorAll('[data-testid="media-badges"], table button').forEach((el) => el.remove());
     doc.querySelectorAll('span.error').forEach((el) => {
       if (el.closest('[data-fishhook-media-url], .fishhook-media-placeholder')) return;
       const label = (el.textContent || 'media').trim() || 'media';
+      if (!isUnresolvedJiraMediaError(label)) {
+        el.replaceWith(doc.createTextNode(label));
+        return;
+      }
       const placeholder = doc.createElement('span');
       placeholder.className = 'fishhook-media-placeholder';
       placeholder.textContent = `[media: ${label}]`;

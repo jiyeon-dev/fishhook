@@ -7,8 +7,15 @@ Jira Description에 포함된 인라인 첨부파일(이미지, 동영상)을 Fi
 Jira REST API의 `expand=renderedFields` 응답은 미디어를 제대로 HTML로 변환하지 못하는 경우가 많다.
 
 ```html
+<!-- 미디어 참조 해석 실패 -->
 <span class="error">[^524f6d51-e4fb-475b-9122-24e283d1a95f]</span>
+
+<!-- 매크로·위키 마크업 등 다른 렌더 실패 (미디어 아님) -->
+<span class="error">[snmp0-]</span>
 ```
+
+미디어 오류 span은 본문에 `^`와 UUID(또는 media id)가 포함된다.
+`[snmp0-]`처럼 대괄호만 있는 일반 텍스트는 미디어가 아니므로 placeholder로 바꾸지 않고 원문 그대로 표시한다.
 
 또한 첨부파일 URL이 `/rest/api/3/attachment/content/123` 같은 상대 경로이고, Fisheye 페이지에서는 Jira 인증 쿠키가 붙지 않아 `<video src>` / `<img src>`로 직접 로드할 수 없다.
 
@@ -63,7 +70,8 @@ GET {jiraBaseUrl}/rest/api/{3|2|latest}/issue/{KEY}
 
 ### HTML 후처리
 
-- `<span class="error">[^uuid]</span>` → 매칭된 첨부파일 MIME에 따라 `<video>`, `<img>`, `<a>` 또는 placeholder
+- `<span class="error">[^uuid]</span>` (`^` + media id 패턴) → 매칭된 첨부파일 MIME에 따라 `<video>`, `<img>`, `<a>` 또는 placeholder
+- `^` 패턴이 없는 `<span class="error">`(예: `[snmp0-]`) → 미디어로 취급하지 않음; background·renderer 모두 원문 텍스트 유지
 - `/rest/api/.../attachment/content/...` 상대 URL → `{jiraBaseUrl}` 절대 URL
 - 기존 `<video>` / `<img>` src → `data-fishhook-media-url` 속성 추가
 
@@ -107,7 +115,8 @@ fetch(url, { credentials: 'include', redirect: 'follow' })
 
 기타 후처리:
 
-- Jira `span.error` → `[media: ...]` placeholder (background에서 해석되지 않은 경우)
+- Jira `span.error` 중 `^` + media id 패턴만 → `[media: ...]` placeholder (background에서 해석되지 않은 경우)
+- `^` 패턴이 없는 `span.error`(예: `[snmp0-]`) → placeholder 변환 없이 원문 텍스트로 치환
 - `blob:` 이미지 → `[image: 파일명]` placeholder
 - `<iframe>` 제거 (외부 embed)
 
@@ -149,3 +158,4 @@ content/desc-panel.css         # 미리보기 패널 이미지 max-width
 - [ ] 미리보기 패널: 이미지 첨부 이슈 → 이미지 표시
 - [ ] Jira 미로그인 → 미디어 fetch 실패, 본문 텍스트는 표시
 - [ ] Description 본문만 동영상인 이슈 → Objectives/미리보기 모두 빈 화면이 아님
+- [ ] `[snmp0-]` 등 대괄호 일반 텍스트 → `[media: ...]` placeholder 없이 원문 표시

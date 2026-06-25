@@ -309,7 +309,8 @@ content/desc-panel.css
 - inline code 보정
 - table에 `wiki-table` 스타일 적용
 - blob 이미지 → `[image: 파일명]` placeholder
-- Jira error span / ADF media → 첨부파일 매칭 후 `<img>`, `<video>`, `[VIDEO]` 또는 `[media: ...]`
+- Jira error span(`^` + media id) / ADF media → 첨부파일 매칭 후 `<img>`, `<video>`, `[VIDEO]` 또는 `[media: ...]`
+- `^` 패턴이 없는 error span(예: `[snmp0-]`) → 원문 텍스트 유지
 - list/table/code block이 Fisheye CSS에 의해 숨겨지지 않도록 class와 CSS 보정
 
 미디어 처리 상세는 [jira-media-handling.md](./jira-media-handling.md)를 참고한다.

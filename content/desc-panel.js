@@ -112,6 +112,14 @@
     link.textContent = label || 'Open Jira';
   }
 
+  function wrapJiraMarkup(innerHtml) {
+    return (
+      `<div class="fishhook-objectives-inject markup">` +
+      `<div class="fishhook-objectives-body--adf">${innerHtml}</div>` +
+      `</div>`
+    );
+  }
+
   function fillBody(body, data, labels, jiraHost) {
     if (!body) return;
 
@@ -126,15 +134,21 @@
     const text = data.text && String(data.text).trim();
 
     if (html) {
-      body.innerHTML = window.FishHookDescriptionRenderer?.render
+      const rendered = window.FishHookDescriptionRenderer?.render
         ? window.FishHookDescriptionRenderer.render(html, { videoMode: 'placeholder' })
         : html;
-      const visibleLen = (body.textContent || '').trim().length;
+      const visibleLen = String(rendered).replace(/<[^>]+>/g, '').trim().length;
       if ((!visibleLen || visibleLen < 3) && text) {
-        body.innerHTML = `<div class="wiki-content fishhook-desc-panel__fallback"><p class="wiki-p">${escapeHtml(text).replace(/\n/g, '<br>')}</p></div>`;
+        body.innerHTML = wrapJiraMarkup(
+          `<div class="wiki-content fishhook-desc-panel__fallback"><p class="wiki-p">${escapeHtml(text).replace(/\n/g, '<br>')}</p></div>`
+        );
+      } else {
+        body.innerHTML = wrapJiraMarkup(rendered);
       }
     } else if (text) {
-      body.innerHTML = `<div class="wiki-content"><p class="wiki-p">${escapeHtml(text).replace(/\n/g, '<br>')}</p></div>`;
+      body.innerHTML = wrapJiraMarkup(
+        `<div class="wiki-content"><p class="wiki-p">${escapeHtml(text).replace(/\n/g, '<br>')}</p></div>`
+      );
     } else {
       const host = escapeHtml(jiraHost || 'Jira');
       body.innerHTML =
@@ -192,7 +206,7 @@
       `<button type="button" class="fishhook-desc-panel__close" title="${escapeHtml(labels.closeTitle)}" aria-label="${escapeHtml(labels.closeAria)}">×</button>` +
       `</div>` +
       `<div class="fishhook-desc-panel__body-label">${escapeHtml(labels.bodyLabel)}</div>` +
-      `<div class="fishhook-desc-panel__body fishhook-objectives-body--adf"></div>` +
+      `<div class="fishhook-desc-panel__body"></div>` +
       `<div class="fishhook-desc-panel__actions"></div>`;
 
     if (issueUrl) {

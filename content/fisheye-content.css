@@ -173,17 +173,20 @@
 }
 
 .fishhook-objectives-inject.markup .wiki-inline-code,
+.fishhook-objectives-inject.markup tt,
 .fishhook-objectives-inject.markup td code,
 .fishhook-objectives-inject.markup th code,
 .fishhook-objectives-body--adf .wiki-inline-code,
+.fishhook-objectives-body--adf tt,
 .fishhook-objectives-body--adf td code,
 .fishhook-objectives-body--adf th code {
-  font-family: monospace, ui-monospace, Consolas, 'Courier New', monospace;
-  font-size: 12px;
-  background: #f4f5f7;
-  border: 1px solid #dfe1e6;
-  border-radius: 3px;
-  padding: 0 4px;
+  line-height: inherit;
+  padding: 0 0.5ch;
+  white-space: pre-wrap;
+  background-color: #0515240f;
+  border: 0;
+  border-radius: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
 }
 
 .fishhook-objectives-inject.markup pre:not([class^='code-']),

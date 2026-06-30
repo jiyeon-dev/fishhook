@@ -364,7 +364,7 @@
   }
 
   function normalizeInlineCodeElements(doc) {
-    doc.querySelectorAll('code, kbd').forEach((el) => {
+    doc.querySelectorAll('code, kbd, tt').forEach((el) => {
       if (el.closest('pre') || el.closest('.code.panel')) return;
       el.className = 'wiki-inline-code';
     });
@@ -376,7 +376,7 @@
   }
 
   function stripOrphanWikiDelimitersAroundInlineCode(doc) {
-    doc.querySelectorAll('code, kbd').forEach((codeEl) => {
+    doc.querySelectorAll('code, kbd, tt').forEach((codeEl) => {
       if (codeEl.closest('pre') || codeEl.closest('.code.panel')) return;
 
       let next = codeEl.nextSibling;
@@ -413,7 +413,7 @@
 
   function normalizeTableCellInlineCode(doc) {
     doc.querySelectorAll('table td, table th').forEach((cell) => {
-      if (cell.querySelector('code, kbd, pre, .code.panel')) return;
+      if (cell.querySelector('code, kbd, tt, pre, .code.panel')) return;
       if (cell.querySelector('.wiki-inline-code')) return;
 
       const text = cell.textContent || '';

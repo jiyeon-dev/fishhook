@@ -159,6 +159,33 @@ Objectives(`.fishhook-objectives-inject`)와 Description 미리보기 패널(`.f
 - `blob:` 이미지 → `[image: 파일명]` placeholder
 - `<iframe>` 제거 (외부 embed)
 
+### 인라인 코드
+
+Jira rendered HTML과 plain text 양쪽을 맞춘다.
+
+| 입력 | HTML 출력 |
+|------|-----------|
+| 본문 텍스트의 `` `text` `` | `<code class="wiki-inline-code">text</code>` |
+| 본문 텍스트의 `{{text}}` | `<code class="wiki-inline-code">text</code>` |
+| Jira rendered `<tt>` | `wiki-inline-code` 클래스 추가 |
+| Jira rendered `<code>`, `<kbd>` (블록 코드 제외) | `wiki-inline-code` 클래스로 통일 |
+
+표 셀 안의 `` `...` `` / `{{...}}`도 동일 규칙으로 변환한다. `pre`·`.code.panel` 안의 코드는 블록 코드로 취급해 인라인 스타일을 적용하지 않는다.
+
+`fisheye-content.css`에서 Cloud Jira 인라인 코드와 비슷하게 스타일한다.
+
+```css
+line-height: inherit;
+padding-top: 2px;
+padding-right: 0.5ch;
+padding-bottom: 2px;
+color: #292a2e;
+white-space: pre-wrap;
+background-color: #0515240f;
+```
+
+monospace `font-family`·border·border-radius는 사용하지 않고 본문 기본 폰트를 따른다.
+
 ## CSS 클래스
 
 | 클래스 | 용도 |
@@ -170,6 +197,7 @@ Objectives(`.fishhook-objectives-inject`)와 Description 미리보기 패널(`.f
 | `fishhook-jira-media--loading` | src 없는 미디어 fetch 전 shimmer (동영상) |
 | `fishhook-jira-media--failed` | fetch 실패 |
 | `fishhook-image-lightbox` | 이미지 전체화면 오버레이 |
+| `wiki-inline-code` | 인라인 코드 (`code` / `tt` / 백틱·`{{}}` 변환 결과) |
 
 ## 제한 사항
 
@@ -188,7 +216,7 @@ content/media-loader.js        # 동영상 hydration (background 경유)
 content/image-lightbox.js      # 이미지 클릭 전체화면
 content/desc-panel.js          # includeVideo: false, videoMode: placeholder
 content/fisheye-content.js     # Objectives: includeVideo 기본 true, hydration + lightbox
-content/fisheye-content.css    # 미디어/placeholder/라이트박스 스타일
+content/fisheye-content.css    # 미디어/placeholder/라이트박스/인라인 코드 스타일
 content/desc-panel.css         # 미리보기 패널 이미지 max-width
 ```
 
@@ -201,4 +229,5 @@ content/desc-panel.css         # 미리보기 패널 이미지 max-width
 - [ ] 미리보기 패널: 이미지 첨부 이슈 → 이미지 표시
 - [ ] Jira 미로그인 → 동영상 fetch 실패, 이미지 깨짐 가능, 본문 텍스트는 표시
 - [ ] Description 본문만 동영상인 이슈 → Objectives/미리보기 모두 빈 화면이 아님
+- [ ] Objectives / 미리보기 패널: `` `inline` ``, `{{inline}}`, `<tt>` → Cloud Jira 스타일 인라인 코드 표시
 - [ ] `[snmp0-]` 등 대괄호 일반 텍스트 → `[media: ...]` placeholder 없이 원문 표시

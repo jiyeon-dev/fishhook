@@ -310,7 +310,7 @@ content/desc-panel.css
 
 - Jira rendered description HTML sanitize
 - 코드 블록을 Fisheye 스타일 code panel로 변환
-- inline code 보정
+- 인라인 코드: `` `...` `` / `{{...}}` → `<code class="wiki-inline-code">`, Jira `<tt>`·`<code>`·`<kbd>` 통일, Cloud Jira 스타일 CSS 적용
 - table에 `wiki-table` 스타일 적용
 - blob 이미지 → `[image: 파일명]` placeholder
 - Jira error span(`^` + media id) / ADF media → 첨부파일 매칭 후 `<img>`, `<video>`, `[VIDEO]` 또는 `[media: ...]`

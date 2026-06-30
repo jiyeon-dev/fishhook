@@ -13,23 +13,40 @@
     }
   }
 
+  function fetchAttachmentBlob(url) {
+    return new Promise((resolve, reject) => {
+      try {
+        chrome.runtime.sendMessage({ type: 'FISHHOOK_FETCH_JIRA_ATTACHMENT', url }, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          if (!response?.ok) {
+            reject(new Error(response?.error || 'FETCH_FAILED'));
+            return;
+          }
+          resolve(
+            new Blob([response.buffer], {
+              type: response.contentType || 'application/octet-stream',
+            })
+          );
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
   async function hydrateElement(el) {
     const url = String(el.getAttribute('data-fishhook-media-url') || '').trim();
     if (!url || el.dataset.fishhookMediaHydrated === 'true') return;
 
+    if (el.tagName === 'IMG' && String(el.getAttribute('src') || '').trim()) return;
+
     el.dataset.fishhookMediaHydrated = 'pending';
 
     try {
-      const response = await fetch(url, {
-        credentials: 'include',
-        redirect: 'follow',
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const blob = await response.blob();
+      const blob = await fetchAttachmentBlob(url);
       revokeObjectUrl(el);
       const objectUrl = URL.createObjectURL(blob);
       hydratedUrls.set(el, objectUrl);

@@ -211,7 +211,10 @@
     });
     doc.querySelectorAll('img').forEach((img) => {
       if (img.hasAttribute('data-fishhook-media-url')) {
-        img.classList.add('fishhook-jira-media', 'fishhook-jira-image', 'fishhook-jira-media--loading');
+        img.classList.add('fishhook-jira-media', 'fishhook-jira-image');
+        if (!String(img.getAttribute('src') || '').trim()) {
+          img.classList.add('fishhook-jira-media--loading');
+        }
         return;
       }
       const src = img.getAttribute('src') || '';

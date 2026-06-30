@@ -226,7 +226,8 @@ includeVideo: true | false   // 미리보기는 false, Objectives는 true(기본
 
 Jira API 응답이 `401`, `403`, 또는 JSON이 아닌 로그인 HTML이면 `JIRA_LOGIN_REQUIRED`로 간주한다.
 
-Objectives에 표시되는 동영상은 `media-loader.js`가 Jira 첨부파일을 인증 fetch한 뒤 재생한다.
+Objectives에 표시되는 **동영상**은 `media-loader.js`가 background(`FISHHOOK_FETCH_JIRA_ATTACHMENT`)를 통해 Jira 첨부파일을 fetch한 뒤 blob URL로 재생한다.
+**이미지**는 `<img src>`로 Jira URL을 직접 표시하며, 클릭 시 `image-lightbox.js`로 전체화면 확대한다.
 Description 미리보기 패널에서는 동영상을 `[VIDEO]` placeholder로만 표시한다.
 자세한 내용은 [jira-media-handling.md](./jira-media-handling.md)를 참고한다.
 
@@ -272,6 +273,7 @@ console.info("[fishhook][fisheye]", "Configured Fisheye page matched, but the Ob
 content/
   description-renderer.js
   media-loader.js
+  image-lightbox.js
   desc-panel.js
   desc-panel.css
   fisheye-content.js
@@ -292,6 +294,7 @@ src/ui/
 ```text
 content/description-renderer.js
 content/media-loader.js
+content/image-lightbox.js
 content/desc-panel.js
 content/fisheye-content.js
 content/fisheye-content.css
@@ -299,7 +302,8 @@ content/desc-panel.css
 ```
 
 `description-renderer.js`는 Jira HTML 후처리를 담당한다.
-`media-loader.js`는 Jira 첨부파일을 인증 fetch로 blob URL에 올려 `<img>` / `<video>`에 연결한다.
+`media-loader.js`는 **동영상** 첨부파일만 background fetch로 blob URL에 연결한다. **이미지**는 `<img src>` 직접 로드로 표시한다.
+`image-lightbox.js`는 미리보기 영역 이미지 클릭 시 전체화면 확대를 제공한다.
 `fisheye-content.js`는 issue key 추출, Jira fetch 요청, Objectives 삽입, Description 미리보기 패널 진입점을 담당한다.
 
 후처리 범위:

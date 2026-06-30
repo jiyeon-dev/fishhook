@@ -160,6 +160,8 @@
     window.FishHookMediaLoader?.hydrate(body)?.catch((error) => {
       console.warn('[fishhook][desc-panel] Failed to hydrate Jira media.', error);
     });
+
+    window.FishHookImageLightbox?.attach(body, { closeAria: labels.closeAria });
   }
 
   function resolvePanelTitle(issueTitle, issueKey, loading, labels) {

@@ -163,7 +163,7 @@ function createMediaElementHtml(attachment, jiraBaseUrl, mediaOptions = {}) {
   if (mime.startsWith('image/')) {
     return (
       `<img class="fishhook-jira-media fishhook-jira-image" alt="${title}"` +
-      ` data-fishhook-media-url="${urlAttr}" />`
+      ` src="${urlAttr}" data-fishhook-media-url="${urlAttr}" />`
     );
   }
   return (
@@ -361,7 +361,63 @@ async function fetchJiraIssue(issueKey, options = {}) {
   return { ok: false, error: 'DESCRIPTION_NOT_FOUND', issueKey: key, issueUrl };
 }
 
+function isAllowedJiraAttachmentUrl(url, jiraBaseUrl) {
+  const value = String(url || '').trim();
+  if (!value || !jiraBaseUrl) return false;
+  try {
+    const parsed = new URL(value);
+    const base = new URL(jiraBaseUrl);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+    if (parsed.hostname !== base.hostname) return false;
+    return /\/(?:rest\/api\/(?:3|2|latest)\/attachment\/content|secure\/attachment)\//i.test(
+      parsed.pathname
+    );
+  } catch (_) {
+    return false;
+  }
+}
+
+async function fetchJiraAttachment(url) {
+  const jiraBaseUrl = await getJiraBaseUrl();
+  if (!jiraBaseUrl) {
+    return { ok: false, error: 'JIRA_URL_NOT_CONFIGURED' };
+  }
+
+  const normalizedUrl = String(url || '').trim();
+  if (!isAllowedJiraAttachmentUrl(normalizedUrl, jiraBaseUrl)) {
+    return { ok: false, error: 'INVALID_ATTACHMENT_URL' };
+  }
+
+  try {
+    const response = await fetch(normalizedUrl, {
+      credentials: 'include',
+      redirect: 'follow',
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, error: 'JIRA_LOGIN_REQUIRED' };
+    }
+
+    if (!response.ok) {
+      return { ok: false, error: `HTTP_${response.status}` };
+    }
+
+    const buffer = await response.arrayBuffer();
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    return { ok: true, buffer, contentType };
+  } catch (error) {
+    return { ok: false, error: String(error) };
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === 'FISHHOOK_FETCH_JIRA_ATTACHMENT') {
+    fetchJiraAttachment(message.url)
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: String(error) }));
+    return true;
+  }
+
   if (message?.type !== 'FISHHOOK_FETCH_JIRA_CONTENT') return false;
 
   fetchJiraIssue(message.issueKey, { includeVideo: message.includeVideo !== false })

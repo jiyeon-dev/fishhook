@@ -496,6 +496,7 @@
     window.FishHookMediaLoader?.hydrate(root)?.catch((error) => {
       console.warn(LOG, 'Failed to hydrate Jira media.', error);
     });
+    window.FishHookImageLightbox?.attach(root, { closeAria: t('panelCloseAria') });
   }
 
   function renderJiraBody(data) {

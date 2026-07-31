@@ -172,6 +172,33 @@
   font-weight: 600;
 }
 
+/* Cells rebuilt from ADF wrap their content in <p>; drop the default margins. */
+.fishhook-objectives-inject.markup td > p,
+.fishhook-objectives-inject.markup th > p,
+.fishhook-objectives-body--adf td > p,
+.fishhook-objectives-body--adf th > p {
+  margin: 0 0 0.4em !important;
+}
+
+.fishhook-objectives-inject.markup td > p:last-child,
+.fishhook-objectives-inject.markup th > p:last-child,
+.fishhook-objectives-body--adf td > p:last-child,
+.fishhook-objectives-body--adf th > p:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* colgroup/col are not restyled by this sheet; keep host CSS from breaking
+   column sizing on injected tables. */
+.fishhook-objectives-inject.markup colgroup,
+.fishhook-objectives-body--adf colgroup {
+  display: table-column-group !important;
+}
+
+.fishhook-objectives-inject.markup col,
+.fishhook-objectives-body--adf col {
+  display: table-column !important;
+}
+
 .fishhook-objectives-inject.markup .wiki-inline-code,
 .fishhook-objectives-inject.markup tt,
 .fishhook-objectives-inject.markup td code,

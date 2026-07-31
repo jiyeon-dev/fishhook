@@ -72,8 +72,24 @@ GET {jiraBaseUrl}/rest/api/{3|2|latest}/issue/{KEY}
 
 1. `collection === 'attachment'` 이고 `id`가 첨부파일 ID와 일치
 2. `attrs.url`에 포함된 attachment content ID
-3. `attrs.alt`와 첨부파일 `filename` 일치
-4. media `id`와 첨부파일 `id` 일치
+3. 첨부파일 `filename`에 media UUID가 포함 (아래 참고)
+4. `attrs.alt`와 첨부파일 `filename` 일치
+5. UUID 접미사를 제거한 이름끼리 일치 — **후보가 정확히 1개일 때만**
+6. media `id`와 첨부파일 `id` 일치
+
+#### 파일명에 붙는 media UUID
+
+같은 이름의 파일이 여러 번 올라가면 Jira Cloud는 첨부파일을 이렇게 저장한다.
+
+```text
+ADF media.attrs.alt : 위협 관리 기본 정보 변경 후.png
+첨부파일 filename   : 위협 관리 기본 정보 변경 후 (f059930b-7143-4a16-9043-2866adb7bb60).png
+```
+
+괄호 안 UUID는 ADF `media.attrs.id`와 같다. 이름 완전 일치로만 비교하면 매칭에 실패해 `[media: …]` placeholder가 뜬다.
+
+- **3단계**가 UUID 포함 여부로 먼저 잡는다. 접미사는 중복을 구분하려고 붙은 것이므로 이름보다 강한 신호다.
+- **5단계**는 `\s*\(<uuid>\)\s*`(확장자 앞) 를 양쪽에서 제거하고 비교한다. 정규화 후 후보가 2개 이상이면 `null`을 반환한다 — "변경 전/변경 후" 표에서 엉뚱한 스크린샷을 보여주는 것보다 placeholder가 낫다.
 
 ### HTML 후처리
 
@@ -211,6 +227,7 @@ monospace `font-family`·border·border-radius는 사용하지 않고 본문 기
 
 ```text
 background.js                  # ADF/첨부파일 매칭, includeVideo, HTML 보정, attachment fetch
+src/adf-html.js                # ADF -> HTML 폴백 (병합 셀 표 복원, docs/adf-table-fallback.md)
 content/description-renderer.js
 content/media-loader.js        # 동영상 hydration (background 경유)
 content/image-lightbox.js      # 이미지 클릭 전체화면

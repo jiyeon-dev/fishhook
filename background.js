@@ -1,5 +1,7 @@
 'use strict';
 
+importScripts('src/adf-html.js');
+
 const JIRA_URL_STORAGE_KEY = 'fishhook.jiraBaseUrl';
 const SHOW_OBJECTIVES_BUTTON_KEY = 'fishhook.showObjectivesButton';
 const LOG = '[fishhook][background]';
@@ -77,16 +79,20 @@ function adfToPlainText(adf) {
   return adfNodeToPlainText(adf).replace(/\n{3,}/g, '\n\n').trim();
 }
 
+function normalizeAdfMediaNode(node) {
+  return {
+    id: String(node.attrs.id),
+    alt: String(node.attrs.alt || '').trim(),
+    collection: String(node.attrs.collection || '').trim(),
+    mediaType: String(node.attrs.type || 'file').trim(),
+    url: String(node.attrs.url || '').trim(),
+  };
+}
+
 function walkAdfMediaNodes(node, out = []) {
   if (!node || typeof node !== 'object') return out;
   if (node.type === 'media' && node.attrs?.id) {
-    out.push({
-      id: String(node.attrs.id),
-      alt: String(node.attrs.alt || '').trim(),
-      collection: String(node.attrs.collection || '').trim(),
-      mediaType: String(node.attrs.type || 'file').trim(),
-      url: String(node.attrs.url || '').trim(),
-    });
+    out.push(normalizeAdfMediaNode(node));
   }
   if (Array.isArray(node.content)) {
     node.content.forEach((child) => walkAdfMediaNodes(child, out));
@@ -110,6 +116,21 @@ function attachmentContentUrl(jiraBaseUrl, attachment) {
   return `${jiraBaseUrl}/rest/api/3/attachment/content/${encodeURIComponent(String(id))}`;
 }
 
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+// Jira Cloud stores colliding uploads as "name (<media uuid>).png" while the ADF
+// media node keeps the clean `alt`. Strip that suffix before comparing names.
+const UUID_FILENAME_SUFFIX_RE = new RegExp(
+  `\\s*\\(\\s*${UUID_RE.source}\\s*\\)\\s*(?=\\.[^.]+$|$)`,
+  'i'
+);
+
+function normalizeAttachmentName(name) {
+  return String(name || '')
+    .replace(UUID_FILENAME_SUFFIX_RE, '')
+    .trim();
+}
+
 function matchMediaToAttachment(media, attachments) {
   const list = Array.isArray(attachments) ? attachments : [];
   if (!media || !list.length) return null;
@@ -127,9 +148,26 @@ function matchMediaToAttachment(media, attachments) {
     }
   }
 
+  // The media UUID embedded in the filename is a stronger signal than the name
+  // itself, because that suffix only exists to disambiguate duplicate names.
+  if (media.id && UUID_RE.test(String(media.id))) {
+    const byTaggedFilename = list.find((item) =>
+      String(item.filename || '').includes(String(media.id))
+    );
+    if (byTaggedFilename) return byTaggedFilename;
+  }
+
   if (media.alt) {
     const byFilename = list.find((item) => String(item.filename || '') === media.alt);
     if (byFilename) return byFilename;
+
+    // Compare with the UUID suffix removed from either side, but only accept an
+    // unambiguous hit: guessing between duplicates would show the wrong image.
+    const wanted = normalizeAttachmentName(media.alt);
+    if (wanted) {
+      const normalized = list.filter((item) => normalizeAttachmentName(item.filename) === wanted);
+      if (normalized.length === 1) return normalized[0];
+    }
   }
 
   if (media.id) {
@@ -236,6 +274,23 @@ function resolveMediaInHtml(html, adf, attachments, jiraBaseUrl, mediaOptions = 
   return out;
 }
 
+// Jira Cloud drops nodes it cannot convert to HTML and leaves
+// `<!-- ADF macro (type = 'table') -->` behind. Tables with merged cells always
+// take that path, so rebuild them from the raw ADF and splice them back in.
+function restoreAdfMacroPlaceholders(html, adf, attachments, jiraBaseUrl, mediaOptions = {}) {
+  const fill = self.FishHookAdfHtml?.fillAdfMacroPlaceholders;
+  if (!fill || !adf) return html;
+
+  return fill(html, adf, {
+    renderMedia(node) {
+      if (!node?.attrs?.id) return '';
+      const attachment = matchMediaToAttachment(normalizeAdfMediaNode(node), attachments);
+      if (!attachment) return '';
+      return createMediaElementHtml(attachment, jiraBaseUrl, mediaOptions);
+    },
+  });
+}
+
 function parseIssueDescription(json, jiraBaseUrl, mediaOptions = {}) {
   const attachments = json?.fields?.attachment;
   const description = json?.fields?.description;
@@ -243,7 +298,13 @@ function parseIssueDescription(json, jiraBaseUrl, mediaOptions = {}) {
 
   const rendered = json?.renderedFields?.description;
   if (rendered && String(rendered).trim()) {
-    const html = resolveMediaInHtml(sanitizeHtml(rendered), adf, attachments, jiraBaseUrl, mediaOptions);
+    const html = restoreAdfMacroPlaceholders(
+      resolveMediaInHtml(sanitizeHtml(rendered), adf, attachments, jiraBaseUrl, mediaOptions),
+      adf,
+      attachments,
+      jiraBaseUrl,
+      mediaOptions
+    );
     const text = stripHtmlToText(html);
     if (hasRenderableHtml(html, text)) return { html, text };
   }

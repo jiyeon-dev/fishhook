@@ -147,10 +147,14 @@
     return `<table class="wiki-table" data-fishhook-adf-table="true"${layoutAttr}><tbody>${rows}</tbody></table>`;
   }
 
-  function renderCodeBlock(node) {
-    const text = (Array.isArray(node.content) ? node.content : [])
+  function codeBlockText(node) {
+    return (Array.isArray(node?.content) ? node.content : [])
       .map((child) => child?.text || '')
       .join('');
+  }
+
+  function renderCodeBlock(node) {
+    const text = codeBlockText(node);
     const lang = String(node.attrs?.language || '')
       .toLowerCase()
       .replace(SAFE_LANG_RE, '');
@@ -271,9 +275,98 @@
     });
   }
 
+  // A codeBlock nested inside a listItem breaks Jira's ADF -> wiki markup step:
+  // the `{noformat}` fence lands on the list item's own line, so the wiki renderer
+  // emits an empty code panel and spills the code into the next paragraph with a
+  // literal `{noformat}` left behind. That paragraph is lossy (a trailing `\`
+  // before the fence is eaten), so we refill the panel from the raw ADF and drop
+  // the spilled paragraph.
+  const EMPTY_PRE_RE = /<pre\b([^>]*)>\s*(?:<code\b[^>]*>\s*<\/code>\s*)?<\/pre>/gi;
+  const PARAGRAPH_RE = /<p\b[^>]*>([\s\S]*?)<\/p>/gi;
+  const FENCE_RE = /\{(?:noformat|code)(?::[^}\n]*)?\}/gi;
+
+  function decodeEntities(text) {
+    return String(text)
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#0*39;/g, "'")
+      .replace(/&amp;/gi, '&');
+  }
+
+  // Compares a spilled paragraph against ADF code text. Backslashes and runs of
+  // whitespace are ignored because that is exactly what the broken conversion
+  // mangles.
+  function comparableCode(text) {
+    return String(text)
+      .replace(FENCE_RE, '')
+      .replace(/\\/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function findSpilledCodeParagraph(source, from) {
+    PARAGRAPH_RE.lastIndex = from;
+    const match = PARAGRAPH_RE.exec(source);
+    if (!match) return null;
+    FENCE_RE.lastIndex = 0;
+    if (!FENCE_RE.test(match[1])) return null;
+    return {
+      start: match.index,
+      end: match.index + match[0].length,
+      text: decodeEntities(match[1]),
+    };
+  }
+
+  function repairFirstSplitCodeBlock(source, codeTexts) {
+    EMPTY_PRE_RE.lastIndex = 0;
+    let match;
+    while ((match = EMPTY_PRE_RE.exec(source))) {
+      const preEnd = match.index + match[0].length;
+      const spilled = findSpilledCodeParagraph(source, preEnd);
+      if (!spilled) continue;
+
+      const wanted = comparableCode(spilled.text);
+      const text = wanted && codeTexts.find((candidate) => comparableCode(candidate) === wanted);
+      if (!text) continue;
+
+      return (
+        source.slice(0, match.index) +
+        `<pre${match[1]}>${escapeHtml(text)}</pre>` +
+        source.slice(preEnd, spilled.start) +
+        source.slice(spilled.end)
+      );
+    }
+    return '';
+  }
+
+  function repairSplitCodeBlocks(html, adf) {
+    let source = String(html || '');
+    if (!source || !adf) return source;
+    FENCE_RE.lastIndex = 0;
+    if (!FENCE_RE.test(source)) return source;
+
+    const codeTexts = (collectNodesByType(adf).get('codeBlock') || [])
+      .map(codeBlockText)
+      .filter((text) => text.trim());
+    if (!codeTexts.length) return source;
+
+    // One repair per pass; the guard keeps a pathological document from looping.
+    for (let pass = 0; pass < codeTexts.length; pass += 1) {
+      const repaired = repairFirstSplitCodeBlock(source, codeTexts);
+      if (!repaired) break;
+      source = repaired;
+    }
+    return source;
+  }
+
   return {
     renderAdfNodeToHtml: renderNode,
     fillAdfMacroPlaceholders,
+    repairSplitCodeBlocks,
     escapeHtml,
   };
 });

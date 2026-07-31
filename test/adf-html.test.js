@@ -3,7 +3,11 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { renderAdfNodeToHtml, fillAdfMacroPlaceholders } = require('../src/adf-html.js');
+const {
+  renderAdfNodeToHtml,
+  fillAdfMacroPlaceholders,
+  repairSplitCodeBlocks,
+} = require('../src/adf-html.js');
 
 function paragraph(text) {
   return { type: 'paragraph', content: text ? [{ type: 'text', text }] : [] };
@@ -207,4 +211,95 @@ test('renders nested tables found inside an expand placeholder', () => {
   };
   const out = fillAdfMacroPlaceholders("<!-- ADF macro (type = 'table') -->", adf);
   assert.match(out, /rowspan="2"/);
+});
+
+// Jira renders a codeBlock nested in a list as an EMPTY code panel plus a
+// paragraph holding the code and a leftover `{noformat}` fence. The paragraph is
+// lossy (a trailing `\` is eaten), so the raw ADF is the only faithful source.
+const NESTED_CODE =
+  'ln -sf /usr/bin/unzip /bin/unzip && \\\nln -sf /usr/bin/pkill /bin/pkill && \\';
+
+const SPLIT_CODE_HTML =
+  '<ul><li><p>기타</p><ul><li>' +
+  '<div class="preformatted panel" style="border-width: 1px;">' +
+  '<div class="preformattedContent panelContent"><pre></pre></div></div>\n' +
+  '<p>ln -sf /usr/bin/unzip /bin/unzip &amp;&amp; \\<br>' +
+  'ln -sf /usr/bin/pkill /bin/pkill &amp;&amp; {noformat}</p>' +
+  '<ul><li><tt>/bin</tt>과 <tt>/usr/bin</tt>이 같은 폴더</li></ul>' +
+  '</li></ul></li></ul>';
+
+function splitCodeAdf(text = NESTED_CODE) {
+  return {
+    type: 'doc',
+    content: [
+      {
+        type: 'bulletList',
+        content: [
+          {
+            type: 'listItem',
+            content: [
+              paragraph('기타'),
+              {
+                type: 'bulletList',
+                content: [
+                  {
+                    type: 'listItem',
+                    content: [{ type: 'codeBlock', content: [{ type: 'text', text }] }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+test('moves a leaked nested code block back into its empty code panel', () => {
+  const out = repairSplitCodeBlocks(SPLIT_CODE_HTML, splitCodeAdf());
+
+  assert.match(out, /<pre>ln -sf \/usr\/bin\/unzip \/bin\/unzip &amp;&amp; \\\n/);
+  assert.match(out, /ln -sf \/usr\/bin\/pkill \/bin\/pkill &amp;&amp; \\<\/pre>/);
+  assert.doesNotMatch(out, /\{noformat\}/);
+  assert.doesNotMatch(out, /<p>ln -sf/);
+  // Everything around the code block survives.
+  assert.match(out, /<p>기타<\/p>/);
+  assert.match(out, /<tt>\/bin<\/tt>/);
+  assert.match(out, /class="preformatted panel"/);
+});
+
+test('repairs every leaked code block, not just the first', () => {
+  const two = SPLIT_CODE_HTML + SPLIT_CODE_HTML.replace(/unzip/g, 'zip');
+  const adf = {
+    type: 'doc',
+    content: [...splitCodeAdf().content, ...splitCodeAdf(NESTED_CODE.replace(/unzip/g, 'zip')).content],
+  };
+
+  const out = repairSplitCodeBlocks(two, adf);
+
+  assert.doesNotMatch(out, /\{noformat\}/);
+  assert.strictEqual((out.match(/<pre>ln -sf/g) || []).length, 2);
+  assert.match(out, /<pre>ln -sf \/usr\/bin\/zip \/bin\/zip/);
+});
+
+test('leaves code panels alone when no ADF code block matches the leaked text', () => {
+  const adf = splitCodeAdf('echo 전혀 다른 코드');
+  assert.strictEqual(repairSplitCodeBlocks(SPLIT_CODE_HTML, adf), SPLIT_CODE_HTML);
+});
+
+test('does not touch healthy code panels or unrelated paragraphs', () => {
+  const healthy =
+    '<div class="code panel"><div class="codeContent panelContent">' +
+    '<pre class="code-plain">int a = 1;</pre></div></div><p>설명 {noformat} 아님</p>';
+  assert.strictEqual(repairSplitCodeBlocks(healthy, splitCodeAdf()), healthy);
+});
+
+test('repairSplitCodeBlocks is a no-op without ADF, fences, or code blocks', () => {
+  assert.strictEqual(repairSplitCodeBlocks(SPLIT_CODE_HTML, null), SPLIT_CODE_HTML);
+  assert.strictEqual(
+    repairSplitCodeBlocks(SPLIT_CODE_HTML, { type: 'doc', content: [paragraph('x')] }),
+    SPLIT_CODE_HTML
+  );
+  assert.strictEqual(repairSplitCodeBlocks('<p>x</p>', splitCodeAdf()), '<p>x</p>');
 });

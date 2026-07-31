@@ -291,6 +291,15 @@ function restoreAdfMacroPlaceholders(html, adf, attachments, jiraBaseUrl, mediaO
   });
 }
 
+// A code block nested in a list comes back from Jira as an empty code panel plus a
+// paragraph holding the code and a leftover `{noformat}` fence. Put the code back
+// where it belongs, using the raw ADF (the paragraph loses a trailing `\`).
+function restoreSplitCodeBlocks(html, adf) {
+  const repair = self.FishHookAdfHtml?.repairSplitCodeBlocks;
+  if (!repair || !adf) return html;
+  return repair(html, adf);
+}
+
 function parseIssueDescription(json, jiraBaseUrl, mediaOptions = {}) {
   const attachments = json?.fields?.attachment;
   const description = json?.fields?.description;
@@ -298,12 +307,15 @@ function parseIssueDescription(json, jiraBaseUrl, mediaOptions = {}) {
 
   const rendered = json?.renderedFields?.description;
   if (rendered && String(rendered).trim()) {
-    const html = restoreAdfMacroPlaceholders(
-      resolveMediaInHtml(sanitizeHtml(rendered), adf, attachments, jiraBaseUrl, mediaOptions),
-      adf,
-      attachments,
-      jiraBaseUrl,
-      mediaOptions
+    const html = restoreSplitCodeBlocks(
+      restoreAdfMacroPlaceholders(
+        resolveMediaInHtml(sanitizeHtml(rendered), adf, attachments, jiraBaseUrl, mediaOptions),
+        adf,
+        attachments,
+        jiraBaseUrl,
+        mediaOptions
+      ),
+      adf
     );
     const text = stripHtmlToText(html);
     if (hasRenderableHtml(html, text)) return { html, text };

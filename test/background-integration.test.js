@@ -136,3 +136,43 @@ test('honours includeVideo=false for media inside a rebuilt table', () => {
   assert.doesNotMatch(result.html, /<video\b/);
   assert.match(result.html, /fishhook-video-placeholder/);
 });
+
+test('puts a list-nested code block back into its empty code panel', () => {
+  const code = 'ln -sf /usr/bin/unzip /bin/unzip && \\\nln -sf /usr/bin/pkill /bin/pkill && \\';
+  const json = issue(
+    '<ul><li><p>기타</p><ul><li>' +
+      '<div class="preformatted panel" style="border-width: 1px;">' +
+      '<div class="preformattedContent panelContent"><pre></pre></div></div>\n' +
+      '<p>ln -sf /usr/bin/unzip /bin/unzip &amp;&amp; \\<br>' +
+      'ln -sf /usr/bin/pkill /bin/pkill &amp;&amp; {noformat}</p>' +
+      '</li></ul></li></ul>'
+  );
+  json.fields.description.content = [
+    {
+      type: 'bulletList',
+      content: [
+        {
+          type: 'listItem',
+          content: [
+            paragraph('기타'),
+            {
+              type: 'bulletList',
+              content: [
+                {
+                  type: 'listItem',
+                  content: [{ type: 'codeBlock', content: [{ type: 'text', text: code }] }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ];
+
+  const result = parse(json);
+
+  assert.doesNotMatch(result.html, /\{noformat\}/);
+  assert.doesNotMatch(result.html, /<p>ln -sf/);
+  assert.match(result.html, /<pre>ln -sf \/usr\/bin\/unzip[\s\S]*pkill &amp;&amp; \\<\/pre>/);
+});

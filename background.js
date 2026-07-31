@@ -131,6 +131,23 @@ function normalizeAttachmentName(name) {
     .trim();
 }
 
+// Exact filename first, then names compared with the UUID suffix stripped — but
+// only when exactly one candidate remains: guessing between duplicates would
+// show the wrong screenshot.
+function findAttachmentByFilename(name, attachments) {
+  const list = Array.isArray(attachments) ? attachments : [];
+  const raw = String(name || '').trim();
+  if (!raw || !list.length) return null;
+
+  const exact = list.find((item) => String(item.filename || '') === raw);
+  if (exact) return exact;
+
+  const wanted = normalizeAttachmentName(raw);
+  if (!wanted) return null;
+  const candidates = list.filter((item) => normalizeAttachmentName(item.filename) === wanted);
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
 function matchMediaToAttachment(media, attachments) {
   const list = Array.isArray(attachments) ? attachments : [];
   if (!media || !list.length) return null;
@@ -158,16 +175,8 @@ function matchMediaToAttachment(media, attachments) {
   }
 
   if (media.alt) {
-    const byFilename = list.find((item) => String(item.filename || '') === media.alt);
+    const byFilename = findAttachmentByFilename(media.alt, list);
     if (byFilename) return byFilename;
-
-    // Compare with the UUID suffix removed from either side, but only accept an
-    // unambiguous hit: guessing between duplicates would show the wrong image.
-    const wanted = normalizeAttachmentName(media.alt);
-    if (wanted) {
-      const normalized = list.filter((item) => normalizeAttachmentName(item.filename) === wanted);
-      if (normalized.length === 1) return normalized[0];
-    }
   }
 
   if (media.id) {
@@ -230,6 +239,196 @@ function tagMediaElementsForHydration(html, mediaOptions = {}) {
   });
 }
 
+function getTagAttr(tag, name) {
+  const match = String(tag || '').match(
+    new RegExp(`\\s${name}\\s*=\\s*(["'])([\\s\\S]*?)\\1`, 'i')
+  );
+  return match ? match[2] : '';
+}
+
+function setTagAttr(tag, name, value) {
+  const existing = new RegExp(`\\s${name}\\s*=\\s*(["'])[\\s\\S]*?\\1`, 'i');
+  if (existing.test(tag)) return tag.replace(existing, ` ${name}="${value}"`);
+  const selfClosing = /\/>\s*$/.test(tag);
+  return `${tag.replace(/\s*\/?>\s*$/, '')} ${name}="${value}"${selfClosing ? ' />' : '>'}`;
+}
+
+// Point an existing <img> at the full-size attachment and give it the same
+// classes/hooks the ADF path produces, so lightbox and CSS treat it alike.
+function markAsFishhookImage(tag, url) {
+  const urlAttr = escapeHtml(url);
+  let out = setTagAttr(tag, 'src', urlAttr);
+  // srcset would keep serving the thumbnail Jira picked, and the width/height it
+  // sized for the thumbnail would keep the full image rendering small.
+  out = out.replace(/\ssrcset\s*=\s*(["'])[\s\S]*?\1/gi, '');
+  out = out.replace(/\s(?:width|height)\s*=\s*(["'])[\s\S]*?\1/gi, '');
+  out = out.replace(/\s(?:width|height)\s*=\s*[^\s"'>]+/gi, '');
+  const style = getTagAttr(out, 'style');
+  if (style) {
+    const kept = style
+      .split(';')
+      .filter((decl) => decl.trim() && !/^\s*(?:width|height|max-width|max-height)\s*:/i.test(decl))
+      .join(';');
+    out = kept ? setTagAttr(out, 'style', kept) : out.replace(/\sstyle\s*=\s*(["'])[\s\S]*?\1/i, '');
+  }
+  const classes = new Set(getTagAttr(out, 'class').split(/\s+/).filter(Boolean));
+  classes.add('fishhook-jira-media');
+  classes.add('fishhook-jira-image');
+  out = setTagAttr(out, 'class', Array.from(classes).join(' '));
+  return setTagAttr(out, 'data-fishhook-media-url', urlAttr);
+}
+
+function thumbnailAttachmentId(url) {
+  const value = String(url || '');
+  const rest = value.match(/\/rest\/api\/(?:3|2|latest)\/attachment\/thumbnail\/(\d+)/i);
+  if (rest) return rest[1];
+  const secure = value.match(/\/secure\/thumbnails?\/(\d+)/i);
+  return secure ? secure[1] : null;
+}
+
+// Jira renders inline images as `/attachment/thumbnail/{id}` (a ~200px crop).
+// The same id serves the original at `/attachment/content/{id}`, so swap it.
+function upgradeThumbnailUrlsInHtml(html, attachments, jiraBaseUrl) {
+  const list = Array.isArray(attachments) ? attachments : [];
+  return String(html || '').replace(/<img\b[^>]*>/gi, (tag) => {
+    const src = getTagAttr(tag, 'src');
+    if (!src) return tag;
+    if (!src.startsWith('/') && !src.startsWith(jiraBaseUrl)) return tag;
+    const id = thumbnailAttachmentId(src);
+    if (!id) return tag;
+
+    const attachment =
+      list.find((item) => String(item.id) === id) ||
+      findAttachmentByFilename(
+        getTagAttr(tag, 'data-attachment-name') || getTagAttr(tag, 'alt') || getTagAttr(tag, 'title'),
+        list
+      );
+
+    if (attachment) {
+      const url = attachmentContentUrl(jiraBaseUrl, attachment);
+      return url ? markAsFishhookImage(tag, url) : tag;
+    }
+    // No attachment list to confirm against (fields.attachment missing): the id
+    // in the thumbnail path is the attachment id, so the swap still holds.
+    if (list.length) return tag;
+    return markAsFishhookImage(tag, `${jiraBaseUrl}/rest/api/3/attachment/content/${id}`);
+  });
+}
+
+const MEDIA_CARD_OPEN_RE = /<div\b[^>]*\bdata-node-type=["']media["'][^>]*>/gi;
+const DIV_TAG_RE = /<div\b[^>]*>|<\/div\s*>/gi;
+
+// Returns the index just past the </div> that closes the card opened at `from`.
+function findMediaCardEnd(html, from) {
+  DIV_TAG_RE.lastIndex = from;
+  let depth = 1;
+  let match = DIV_TAG_RE.exec(html);
+  while (match) {
+    depth += match[0].startsWith('</') ? -1 : 1;
+    if (depth === 0) return DIV_TAG_RE.lastIndex;
+    match = DIV_TAG_RE.exec(html);
+  }
+  return -1;
+}
+
+function mediaCardDescriptor(openTag) {
+  const id = getTagAttr(openTag, 'data-id').trim();
+  if (!id) return null;
+  const fileName = getTagAttr(openTag, 'data-file-name').trim();
+  return {
+    id,
+    alt: getTagAttr(openTag, 'data-alt').trim() || fileName,
+    collection: getTagAttr(openTag, 'data-collection').trim(),
+    mediaType: getTagAttr(openTag, 'data-type').trim() || 'file',
+    mimeType: getTagAttr(openTag, 'data-file-mime-type').trim().toLowerCase(),
+    fileName,
+  };
+}
+
+// The card thumbnail is a fixed 156x125 crop. Media Services has no public
+// download API, so when the attachment lookup fails, reuse the card's own token
+// and ask the CDN for a full-fit render instead.
+function upgradeMediaCdnUrl(src) {
+  const raw = String(src || '').replace(/&amp;/gi, '&');
+  try {
+    const url = new URL(raw);
+    if (!/(^|\.)media-cdn\.atlassian\.com$/i.test(url.hostname)) return '';
+    url.searchParams.set('mode', 'full-fit');
+    url.searchParams.set('width', '1600');
+    url.searchParams.set('height', '1600');
+    return url.toString().replace(/&/g, '&amp;');
+  } catch (_) {
+    return '';
+  }
+}
+
+function renderMediaCardHtml(card, block, mediaById, attachments, jiraBaseUrl, mediaOptions) {
+  const media = mediaById.get(card.id) || {
+    id: card.id,
+    alt: card.alt,
+    collection: card.collection,
+    mediaType: card.mediaType,
+  };
+  const attachment = matchMediaToAttachment(media, attachments);
+  if (attachment) return createMediaElementHtml(attachment, jiraBaseUrl, mediaOptions);
+
+  const label = escapeHtml(card.fileName || card.alt || card.id);
+  if (card.mimeType.startsWith('video/')) {
+    return mediaOptions.includeVideo === false
+      ? createVideoPlaceholderHtml()
+      : `<span class="fishhook-media-placeholder">[media: ${label}]</span>`;
+  }
+
+  const cardImg = block.match(/<img\b[^>]*>/i);
+  const upgraded = cardImg ? upgradeMediaCdnUrl(getTagAttr(cardImg[0], 'src')) : '';
+  if (upgraded) {
+    return (
+      `<img class="fishhook-jira-media fishhook-jira-image" alt="${label}"` +
+      ` src="${upgraded}" />`
+    );
+  }
+  return `<span class="fishhook-media-placeholder">[media: ${label}]</span>`;
+}
+
+// Cloud's renderedFields wraps each inline image in a Media Services card:
+// fullscreen button, 156px cropped <img>, blanket, title box, download bar.
+// Swap the whole card for a plain full-size <img>.
+function replaceMediaCardsInHtml(html, adf, attachments, jiraBaseUrl, mediaOptions = {}) {
+  let out = String(html || '');
+  if (!/data-node-type=["']media["']/i.test(out)) return out;
+
+  const mediaById = new Map(walkAdfMediaNodes(adf).map((media) => [media.id, media]));
+  let searchFrom = 0;
+
+  for (;;) {
+    MEDIA_CARD_OPEN_RE.lastIndex = searchFrom;
+    const open = MEDIA_CARD_OPEN_RE.exec(out);
+    if (!open) return out;
+
+    const end = findMediaCardEnd(out, open.index + open[0].length);
+    if (end < 0) return out;
+
+    const card = mediaCardDescriptor(open[0]);
+    const replacement = card
+      ? renderMediaCardHtml(
+          card,
+          out.slice(open.index, end),
+          mediaById,
+          attachments,
+          jiraBaseUrl,
+          mediaOptions
+        )
+      : '';
+
+    if (!replacement) {
+      searchFrom = end;
+      continue;
+    }
+    out = out.slice(0, open.index) + replacement + out.slice(end);
+    searchFrom = open.index + replacement.length;
+  }
+}
+
 function stripVideosFromHtml(html) {
   const placeholder = createVideoPlaceholderHtml();
   return String(html || '')
@@ -245,7 +444,9 @@ function hasRenderableHtml(html, text) {
 
 function resolveMediaInHtml(html, adf, attachments, jiraBaseUrl, mediaOptions = {}) {
   const includeVideo = mediaOptions.includeVideo !== false;
-  let out = absolutizeAttachmentUrls(html, jiraBaseUrl);
+  let out = upgradeThumbnailUrlsInHtml(html, attachments, jiraBaseUrl);
+  out = absolutizeAttachmentUrls(out, jiraBaseUrl);
+  out = replaceMediaCardsInHtml(out, adf, attachments, jiraBaseUrl, mediaOptions);
   out = tagMediaElementsForHydration(out, mediaOptions);
 
   const mediaNodes = walkAdfMediaNodes(adf?.type === 'doc' ? adf : adf);

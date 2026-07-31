@@ -178,6 +178,9 @@ body.fishhook-desc-panel--resizing {
   width: auto;
   max-width: 100%;
   height: auto;
+  /* Full-size images now, so cap the height: a tall screenshot would otherwise
+     fill the whole panel. Click opens the lightbox for the original. */
+  max-height: 420px;
   box-sizing: border-box;
 }
 

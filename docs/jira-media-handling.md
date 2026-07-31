@@ -98,6 +98,66 @@ ADF media.attrs.alt : 위협 관리 기본 정보 변경 후.png
 - `/rest/api/.../attachment/content/...` 상대 URL → `{jiraBaseUrl}` 절대 URL
 - 기존 `<video>` / `<img>` src → `data-fishhook-media-url` 속성 추가
 
+### 축소 이미지 → 원본 이미지
+
+Jira는 Description 인라인 이미지를 **두 가지 축소 형태**로 내려준다. 둘 다 원본으로 바꾼다.
+
+#### 1. REST 썸네일 URL (위키 마크업 / 구 첨부)
+
+```html
+<img src="https://{jira}/rest/api/3/attachment/thumbnail/307961" alt="image (17).png" width="200" height="150">
+```
+
+`upgradeThumbnailUrlsInHtml`이 `<img>`마다 다음 순서로 원본 URL을 찾는다.
+
+1. 썸네일 경로의 ID가 `fields.attachment`에 있으면 그 첨부파일의 content URL
+2. 없으면 `data-attachment-name` / `alt` / `title` 파일명으로 `findAttachmentByFilename` 매칭 (UUID 접미사 제거 후 후보가 1개일 때만)
+3. `fields.attachment` 자체가 없으면 경로의 ID를 그대로 써서 `thumbnail` → `content` 치환 (같은 첨부파일 ID)
+4. 첨부파일 목록은 있는데 매칭 실패 → 그대로 둔다 (엉뚱한 이미지보다 안전)
+
+대상 경로: `/rest/api/{3|2|latest}/attachment/thumbnail/{id}`, `/secure/thumbnail(s)/{id}`
+
+치환된 `<img>`는 `srcset`·`width`/`height` 속성·인라인 `width`/`height`/`max-*` 스타일을 제거하고 `fishhook-jira-media fishhook-jira-image` 클래스와 `data-fishhook-media-url`을 붙인다. **속성을 지우지 않으면 src만 원본으로 바뀌고 화면에는 여전히 썸네일 크기로 보인다.**
+
+#### 2. Media Services 카드 (Cloud 에디터)
+
+`renderedFields`는 이미지를 카드 마크업으로 감싼다. 안쪽 `<img>`는 156×125 crop 썸네일이고, wrapper에 `--media-wrapper-width:156px`가 인라인으로 박혀 있다.
+
+```html
+<div class="MediaGroup">
+  <div data-type="file" data-node-type="media" data-id="{media uuid}" data-file-name="image (17).png"
+       data-file-mime-type="image/png">
+    <button>Open image (17).png</button>
+    <img src="https://media-cdn.atlassian.com/file/{uuid}/image/cdn?...&width=156&height=125&mode=crop">
+    <div id="titleBoxWrapper">image (17).png · 10 Jul 2026, 02:41 PM</div>
+    <div id="actionsBarWrapper"><button>Download</button></div>
+  </div>
+</div>
+```
+
+`replaceMediaCardsInHtml`이 `data-node-type="media"` 여는 태그를 찾고 `<div>` 깊이를 세어 **카드 블록 전체**(버튼·타이틀 박스·다운로드 바 포함)를 걷어낸 뒤 다음으로 교체한다. service worker에는 DOMParser가 없어 문자열 스캐너로 처리한다.
+
+| 상황 | 결과 |
+|------|------|
+| 첨부파일 매칭 성공 | `createMediaElementHtml` → error-span 경로와 동일한 `<img src=".../attachment/content/{id}">` |
+| 매칭 실패 (이미지) | 카드의 CDN 토큰을 재사용해 `mode=full-fit&width=1600&height=1600`으로 재작성 |
+| 매칭 실패 (동영상) | `includeVideo: false` → `[VIDEO]`, 그 외 `[media: 파일명]` |
+| `data-id` 없음 | 카드 유지 |
+
+매칭 키는 ADF `media` 노드(`data-id` = `media.attrs.id`)를 우선 쓰고, ADF에 없으면 카드 속성(`data-alt` → `data-file-name`, `data-collection`, `data-type`)으로 descriptor를 만들어 `matchMediaToAttachment`에 넘긴다.
+
+카드를 제거하면 본문 텍스트에서 `Open image (17).png`, `10 Jul 2026, 02:41 PM` 같은 카드 UI 문구도 함께 사라진다.
+
+`resolveMediaInHtml` 실행 순서:
+
+```text
+upgradeThumbnailUrlsInHtml   # 썸네일 → content URL
+absolutizeAttachmentUrls     # 상대 URL → 절대 URL
+replaceMediaCardsInHtml      # media card → 원본 <img>
+tagMediaElementsForHydration # data-fishhook-media-url 부착
+error span 치환              # [^uuid] → 미디어
+```
+
 ### fetch 옵션: `includeVideo`
 
 content script → background 메시지:
@@ -234,7 +294,7 @@ content/image-lightbox.js      # 이미지 클릭 전체화면
 content/desc-panel.js          # includeVideo: false, videoMode: placeholder
 content/fisheye-content.js     # Objectives: includeVideo 기본 true, hydration + lightbox
 content/fisheye-content.css    # 미디어/placeholder/라이트박스/인라인 코드 스타일
-content/desc-panel.css         # 미리보기 패널 이미지 max-width
+content/desc-panel.css         # 미리보기 패널 이미지 max-width / max-height 420px
 ```
 
 ## 수동 검증 체크리스트
@@ -243,7 +303,8 @@ content/desc-panel.css         # 미리보기 패널 이미지 max-width
 - [ ] Objectives: 이미지 첨부 이슈 → 이미지 표시
 - [ ] Objectives / 미리보기 패널: 이미지 클릭 → 전체화면 확대, Esc/배경/×로 닫기
 - [ ] 미리보기 패널: 동영상 첨부 이슈 → `[VIDEO]`만 표시, 재생 없음
-- [ ] 미리보기 패널: 이미지 첨부 이슈 → 이미지 표시
+- [ ] 미리보기 패널: 이미지 첨부 이슈 → 이미지 표시 (썸네일 크기가 아닌 원본, 최대 높이 420px)
+- [ ] Cloud 에디터 이미지(media card) 이슈 → 카드 UI 문구·다운로드 버튼 없이 이미지만 크게 표시
 - [ ] Jira 미로그인 → 동영상 fetch 실패, 이미지 깨짐 가능, 본문 텍스트는 표시
 - [ ] Description 본문만 동영상인 이슈 → Objectives/미리보기 모두 빈 화면이 아님
 - [ ] Objectives / 미리보기 패널: `` `inline` ``, `{{inline}}`, `<tt>` → Cloud Jira 스타일 인라인 코드 표시

@@ -363,6 +363,27 @@
     return true;
   }
 
+  // Jira's wiki renderer matches `{{`...`}}` greedily, so two adjacent inline code
+  // marks (`{{A}}사이 텍스트{{B}}`) collapse into one element holding `A}}사이 텍스트{{B`.
+  // Re-wrapping the text restores the original delimiters and re-splits it.
+  function splitMergedInlineCodeElements(doc) {
+    doc.querySelectorAll('code, kbd, tt').forEach((el) => {
+      if (el.closest('pre') || el.closest('.code.panel')) return;
+      if (el.children.length) return;
+
+      const text = el.textContent || '';
+      if (!/\}\}[\s\S]*\{\{/.test(text)) return;
+
+      const parts = splitWikiInlineMarkup(`{{${text}}}`);
+      if (parts.filter((part) => part.type === 'code').length < 2) return;
+      if (parts.some((part) => part.type === 'text' && /\{\{|\}\}/.test(part.value))) return;
+
+      const fragment = doc.createDocumentFragment();
+      appendWikiInlineMarkupParts(doc, fragment, parts);
+      el.replaceWith(fragment);
+    });
+  }
+
   function normalizeInlineCodeElements(doc) {
     doc.querySelectorAll('code, kbd, tt').forEach((el) => {
       if (el.closest('pre') || el.closest('.code.panel')) return;
@@ -429,6 +450,7 @@
   }
 
   function normalizeInlineCode(doc) {
+    splitMergedInlineCodeElements(doc);
     normalizeInlineCodeElements(doc);
 
     const textNodes = [];

@@ -563,6 +563,55 @@ function parseIssueTitle(json) {
   return String(json?.fields?.summary || '').trim();
 }
 
+function projectKeyOf(json, issueKey) {
+  const fromField = String(json?.fields?.project?.key || '').trim();
+  if (fromField) return fromField;
+  const match = /^([A-Z][A-Z0-9]+)-\d+$/.exec(String(issueKey || '').toUpperCase());
+  return match ? match[1] : '';
+}
+
+// Cloud/Server both expose versions as [{ id, name, released, archived }].
+// The tag link mirrors the issue view: project release report filtered by version.
+function parseVersionList(list, jiraBaseUrl, projectKey) {
+  if (!Array.isArray(list)) return [];
+  const versions = [];
+  for (const item of list) {
+    const name = String(item?.name || '').trim();
+    if (!name) continue;
+    const id = item?.id === undefined || item?.id === null ? '' : String(item.id).trim();
+    const url =
+      id && projectKey
+        ? `${jiraBaseUrl}/projects/${encodeURIComponent(projectKey)}/versions/${encodeURIComponent(
+            id
+          )}/tab/release-report-all-issues`
+        : '';
+    versions.push({
+      name,
+      url,
+      released: item?.released === true,
+      archived: item?.archived === true,
+    });
+  }
+  return versions;
+}
+
+// The issue view renders this next to the summary; the REST field is stable
+// across Cloud/Server, unlike the AI "Improve issue" button label.
+function parseIssueType(json) {
+  const issuetype = json?.fields?.issuetype;
+  const name = String(issuetype?.name || '').trim();
+  if (!name) return null;
+  return { name, subtask: issuetype?.subtask === true };
+}
+
+function parseIssueVersions(json, jiraBaseUrl, issueKey) {
+  const projectKey = projectKeyOf(json, issueKey);
+  return {
+    fixVersions: parseVersionList(json?.fields?.fixVersions, jiraBaseUrl, projectKey),
+    affectsVersions: parseVersionList(json?.fields?.versions, jiraBaseUrl, projectKey),
+  };
+}
+
 async function fetchJiraIssue(issueKey, options = {}) {
   const includeVideo = options.includeVideo !== false;
   const key = String(issueKey || '').trim().toUpperCase();
@@ -580,7 +629,7 @@ async function fetchJiraIssue(issueKey, options = {}) {
   for (const version of ['3', '2', 'latest']) {
     const apiUrl = `${jiraBaseUrl}/rest/api/${version}/issue/${encodeURIComponent(
       key
-    )}?fields=summary,description,attachment&expand=renderedFields`;
+    )}?fields=summary,description,attachment,project,issuetype,fixVersions,versions&expand=renderedFields`;
 
     try {
       const response = await fetch(apiUrl, {
@@ -608,6 +657,10 @@ async function fetchJiraIssue(issueKey, options = {}) {
 
       const json = await response.json();
       const issueTitle = parseIssueTitle(json);
+      const meta = {
+        ...parseIssueVersions(json, jiraBaseUrl, key),
+        issueType: parseIssueType(json),
+      };
       const parsed = parseIssueDescription(json, jiraBaseUrl, { includeVideo });
       if (parsed) {
         return {
@@ -615,6 +668,7 @@ async function fetchJiraIssue(issueKey, options = {}) {
           issueKey: key,
           issueUrl,
           issueTitle,
+          ...meta,
           ...parsed,
         };
       }
@@ -625,6 +679,7 @@ async function fetchJiraIssue(issueKey, options = {}) {
           issueKey: key,
           issueUrl,
           issueTitle,
+          ...meta,
         };
       }
     } catch (error) {

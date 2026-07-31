@@ -68,8 +68,9 @@ objectives:
   fallbackText: 내용 불러오기
   loading: Jira 내용을 불러오는 중입니다.
   restore: 원래 내용
-  previewBanner: Jira 내용 미리보기
-  openJira: Jira 열기
+  openJira: Jira로 이동
+  fixVersions: Fix versions
+  affectsVersions: Affects versions
   jiraUrlRequired: Jira 경로가 설정되어 있지 않습니다. 환경설정에서 Jira 경로를 먼저 입력해 주세요.
   loginRequired: Jira에 로그인되어 있지 않습니다. Jira에 먼저 로그인한 뒤 다시 시도해 주세요.
   issueKeyNotFound: Fisheye 화면에서 Jira 이슈 키를 찾지 못했습니다.

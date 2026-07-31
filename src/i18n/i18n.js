@@ -62,8 +62,9 @@
       'objectives.fallbackText': 'Load content',
       'objectives.loading': 'Loading Jira content.',
       'objectives.restore': 'Restore original content',
-      'objectives.previewBanner': 'Jira content preview',
-      'objectives.openJira': 'Open Jira',
+      'objectives.openJira': 'Go to Jira',
+      'objectives.fixVersions': 'Fix versions',
+      'objectives.affectsVersions': 'Affects versions',
       'objectives.jiraUrlRequired': 'The Jira URL is not set. Add the Jira URL in settings first.',
       'objectives.loginRequired': 'You are not logged in to Jira. Log in to Jira first, then try again.',
       'objectives.issueKeyNotFound': 'Could not find a Jira issue key on this Fisheye page.',
@@ -125,8 +126,9 @@
       'objectives.fallbackText': '내용 불러오기',
       'objectives.loading': 'Jira 내용을 불러오는 중입니다.',
       'objectives.restore': '원래 내용',
-      'objectives.previewBanner': 'Jira 내용 미리보기',
-      'objectives.openJira': 'Jira 열기',
+      'objectives.openJira': 'Jira로 이동',
+      'objectives.fixVersions': 'Fix versions',
+      'objectives.affectsVersions': 'Affects versions',
       'objectives.jiraUrlRequired':
         'Jira 경로가 설정되어 있지 않습니다. 환경설정에서 Jira 경로를 먼저 입력해 주세요.',
       'objectives.loginRequired':

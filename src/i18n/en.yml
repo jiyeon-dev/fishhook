@@ -68,8 +68,9 @@ objectives:
   fallbackText: Load content
   loading: Loading Jira content.
   restore: Restore original content
-  previewBanner: Jira content preview
-  openJira: Open Jira
+  openJira: Go to Jira
+  fixVersions: Fix versions
+  affectsVersions: Affects versions
   jiraUrlRequired: The Jira URL is not set. Add the Jira URL in settings first.
   loginRequired: You are not logged in to Jira. Log in to Jira first, then try again.
   issueKeyNotFound: Could not find a Jira issue key on this Fisheye page.

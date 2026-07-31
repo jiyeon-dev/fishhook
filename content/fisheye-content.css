@@ -80,29 +80,102 @@
   font-weight: 600;
 }
 
-.fishhook-objectives-banner__link {
-  color: #3572b0;
-  text-decoration: none;
-}
-
-.fishhook-objectives-banner__link:hover {
-  text-decoration: underline;
-}
-
+.fishhook-objectives-banner__link,
 .fishhook-objectives-restore {
-  margin-left: auto;
-  padding: 4px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #172b4d;
-  background: #fff;
-  border: 1px solid #c1c7d0;
-  border-radius: 3px;
+  padding: 0;
+  color: #3572b0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-decoration: none;
+  background: none;
+  border: 0;
   cursor: pointer;
 }
 
+.fishhook-objectives-banner__link:hover,
 .fishhook-objectives-restore:hover {
-  background: #f4f5f7;
+  color: #3572b0;
+  text-decoration: underline;
+}
+
+.fishhook-objectives-banner__link:focus-visible,
+.fishhook-objectives-restore:focus-visible {
+  outline: 2px solid #4c9aff;
+  outline-offset: 1px;
+}
+
+.fishhook-objectives-banner__sep {
+  margin: 0 -4px;
+  color: #7a869a;
+}
+
+.fishhook-objectives-banner__issuetype {
+  color: #42526e;
+  font-weight: 600;
+}
+
+.fishhook-objectives-banner__versions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.fishhook-objectives-banner__versions-label {
+  color: #42526e;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fishhook-objectives-banner__versions-empty {
+  color: #7a869a;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.fishhook-version-tag {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  padding: 1px 6px;
+  color: #172b4d;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: #dfe1e6;
+  border-radius: 3px;
+}
+
+a.fishhook-version-tag:hover {
+  background: #c1c7d0;
+  text-decoration: none;
+}
+
+.fishhook-version-tag--fix {
+  color: #0747a6;
+  background: #deebff;
+}
+
+a.fishhook-version-tag--fix:hover {
+  color: #0747a6;
+  background: #b3d4ff;
+}
+
+.fishhook-version-tag--affects {
+  color: #006644;
+  background: #e3fcef;
+}
+
+a.fishhook-version-tag--affects:hover {
+  color: #006644;
+  background: #abf5d1;
 }
 
 .fishhook-objectives-inject.markup {

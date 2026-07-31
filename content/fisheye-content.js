@@ -36,8 +36,9 @@
       fallbackText: '내용 불러오기',
       loading: 'Jira 내용을 불러오는 중입니다.',
       restore: '원래 내용',
-      previewBanner: 'Jira 내용 미리보기',
-      openJira: 'Jira 열기',
+      openJira: 'Jira로 이동',
+      fixVersions: 'Fix versions',
+      affectsVersions: 'Affects versions',
       jiraUrlRequired: 'Jira 경로가 설정되어 있지 않습니다. 환경설정에서 Jira 경로를 먼저 입력해 주세요.',
       loginRequired: 'Jira에 로그인되어 있지 않습니다. Jira에 먼저 로그인한 뒤 다시 시도해 주세요.',
       issueKeyNotFound: 'Fisheye 화면에서 Jira 이슈 키를 찾지 못했습니다.',
@@ -66,8 +67,9 @@
       fallbackText: 'Load content',
       loading: 'Loading Jira content.',
       restore: 'Restore original content',
-      previewBanner: 'Jira content preview',
-      openJira: 'Open Jira',
+      openJira: 'Go to Jira',
+      fixVersions: 'Fix versions',
+      affectsVersions: 'Affects versions',
       jiraUrlRequired: 'The Jira URL is not set. Add the Jira URL in settings first.',
       loginRequired: 'You are not logged in to Jira. Log in to Jira first, then try again.',
       issueKeyNotFound: 'Could not find a Jira issue key on this Fisheye page.',
@@ -478,15 +480,59 @@
     objectivesInjected = false;
   }
 
-  function buildOverviewBanner(issueKey, issueUrl) {
+  function buildVersionTag(version, variant) {
+    const name = escapeHtml(String(version?.name || ''));
+    const className = `fishhook-version-tag fishhook-version-tag--${variant}`;
+    if (version?.url) {
+      return (
+        `<a class="${className}" href="${escapeHtml(version.url)}" ` +
+        `target="_blank" rel="noopener noreferrer">${name}</a>`
+      );
+    }
+    return `<span class="${className}">${name}</span>`;
+  }
+
+  function buildVersionGroup(labelKey, versions, variant) {
+    const list = Array.isArray(versions) ? versions.filter((item) => item && item.name) : [];
+    const value = list.length
+      ? list.map((version) => buildVersionTag(version, variant)).join('')
+      : `<span class="fishhook-objectives-banner__versions-empty">-</span>`;
+    return (
+      `<span class="fishhook-objectives-banner__versions">` +
+      `<span class="fishhook-objectives-banner__versions-label">${escapeHtml(t(labelKey))}</span>` +
+      value +
+      `</span>`
+    );
+  }
+
+  function buildIssueTypeSegment(issueType) {
+    const name = String(issueType?.name || '').trim();
+    if (!name) return '';
+    return `<span class="fishhook-objectives-banner__issuetype">${escapeHtml(name)}</span>`;
+  }
+
+  function buildOverviewBanner(issueKey, issueUrl, data = {}) {
     const link = issueUrl
       ? `<a class="fishhook-objectives-banner__link" href="${escapeHtml(issueUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('openJira'))}</a>`
       : '';
+    const separator = `<span class="fishhook-objectives-banner__sep" aria-hidden="true">·</span>`;
+    // While loading there are no fields yet, so the "-" placeholders would lie.
+    const fields = data.loading
+      ? []
+      : [
+          buildIssueTypeSegment(data.issueType),
+          buildVersionGroup('fixVersions', data.fixVersions, 'fix'),
+          buildVersionGroup('affectsVersions', data.affectsVersions, 'affects'),
+        ];
+    const segments = [
+      `<span class="fishhook-objectives-banner__text">${escapeHtml(issueKey)}</span>`,
+      ...fields,
+      link,
+      `<button type="button" class="fishhook-objectives-restore">${escapeHtml(t('restore'))}</button>`,
+    ].filter(Boolean);
     return (
       `<div class="fishhook-objectives-banner" role="status">` +
-      `<span class="fishhook-objectives-banner__text">${escapeHtml(issueKey)} · ${escapeHtml(t('previewBanner'))}</span>` +
-      link +
-      `<button type="button" class="fishhook-objectives-restore">${escapeHtml(t('restore'))}</button>` +
+      segments.join(separator) +
       `</div>`
     );
   }
@@ -536,7 +582,7 @@
 
     host.classList.add('fishhook-objectives-host');
     host.innerHTML =
-      buildOverviewBanner(issueKey, issueUrl || data.issueUrl) +
+      buildOverviewBanner(issueKey, issueUrl || data.issueUrl, data) +
       `<div class="fishhook-objectives-inject markup">${renderJiraBody(data)}</div>`;
 
     host.querySelector('.fishhook-objectives-restore')?.addEventListener('click', restoreObjectivesBody);

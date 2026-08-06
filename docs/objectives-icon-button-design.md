@@ -3,7 +3,8 @@
 ## 목적
 
 Fisheye 리뷰 화면의 `Objectives` 라벨 우측에 FishHook 아이콘 버튼을 추가한다.
-기존 `jira-preview-main`에서는 `내용 불러오기` 텍스트 버튼을 붙였지만, `fishhook`에서는 텍스트 대신 작은 아이콘 버튼으로 제공한다.
+텍스트 라벨 없이 작은 아이콘 버튼으로 제공하고, 아이콘 로드에 실패하면
+`내용 불러오기` 텍스트로 fallback한다.
 
 버튼의 역할은 Fisheye 화면에서 찾은 Jira 내용을 Objectives 영역에 임시로 붙여 넣어 보여주는 것이다.
 
@@ -29,31 +30,6 @@ Fisheye review page
 저장된 Fisheye 경로가 없거나 현재 페이지가 저장된 Fisheye 경로와 다르면 아무 동작도 하지 않는다.
 Jira 경로가 없으면 Objectives 삽입을 시도하지 않고 우측 하단 오류 팝업을 표시한다.
 Jira에 로그인되어 있지 않으면 Objectives 삽입을 시도하지 않고 우측 하단 오류 팝업을 표시한다.
-
-## 기존 프로젝트 참고
-
-기존 `jira-preview-main`에서는 아래 흐름을 참고한다.
-
-```text
-fisheye-content.js
-  findObjectivesHeading()
-  injectObjectivesLoadButton()
-  openDescriptionOverviewPreview()
-  showOverviewContent()
-  restoreOverviewBody()
-```
-
-기존 텍스트 버튼:
-
-```text
-내용 불러오기
-```
-
-FishHook 신규 버튼:
-
-```text
-[icon]
-```
 
 ## 버튼 위치
 
@@ -167,9 +143,11 @@ Jira에 로그인되어 있지 않습니다. Jira에 먼저 로그인한 뒤 다
 
 ## i18n
 
-문구는 `src/i18n/{locale}.yml`에서 관리한다.
+런타임이 읽는 문구는 `src/i18n/i18n.js`의 인라인 메시지 객체에 있다.
+`src/i18n/{locale}.yml`은 참조용 사본이므로 **yml만 고치면 화면이 바뀌지 않는다**
+(AGENTS.md 참고).
 
-키 후보:
+키:
 
 ```yml
 objectives:
@@ -267,39 +245,20 @@ current: https://jira.<domain>.com/browse/KEY-123
 console.info("[fishhook][fisheye]", "Configured Fisheye page matched, but the Objectives heading/area was not found.", ...)
 ```
 
-## 구현 파일 후보
+## 구현 파일
 
 ```text
-content/
-  description-renderer.js
-  media-loader.js
-  image-lightbox.js
-  desc-panel.js
-  desc-panel.css
-  fisheye-content.js
-  fisheye-content.css
-
-src/fisheye/
-  issue-key.js
-  objectives-target.js
-  objectives-button.js
-  objectives-injection.js
-
-src/ui/
-  toast.js
-```
-
-현재 프로젝트가 빌드 도구 없는 일반 JavaScript 구조이므로 초기에는 `content/` 아래에 content script 파일을 두는 방식을 우선 고려한다.
-
-```text
+content/fisheye-content.js     # 이슈 키 추출, 버튼 삽입/상태, Objectives 주입/복원, 토스트
+content/fisheye-content.css    # 버튼·주입 영역·미디어·인라인 코드 스타일
 content/description-renderer.js
 content/media-loader.js
 content/image-lightbox.js
 content/desc-panel.js
-content/fisheye-content.js
-content/fisheye-content.css
 content/desc-panel.css
 ```
+
+빌드 도구 없는 일반 JavaScript 구조라 별도 모듈로 쪼개지 않고 `fisheye-content.js`
+하나에 issue key 추출·Objectives 버튼·주입·토스트를 함께 둔다.
 
 `description-renderer.js`는 Jira HTML 후처리를 담당한다.
 `media-loader.js`는 **동영상** 첨부파일만 background fetch로 blob URL에 연결한다. **이미지**는 `<img src>` 직접 로드로 표시한다.
@@ -318,28 +277,6 @@ content/desc-panel.css
 - list/table/code block이 Fisheye CSS에 의해 숨겨지지 않도록 class와 CSS 보정
 
 미디어 처리 상세는 [jira-media-handling.md](./jira-media-handling.md)를 참고한다.
-
-## 하네스
-
-실제 Fisheye 없이 버튼 위치와 동작을 확인하기 위해 fixture 기반 하네스를 만든다.
-
-파일 후보:
-
-```text
-harness/objectives-button.html
-harness/fixtures/fisheye-objectives-heading.html
-harness/fixtures/fisheye-objectives-with-edit-link.html
-harness/fixtures/fisheye-objectives-missing.html
-```
-
-검증 항목:
-
-- Objectives heading 오른쪽에 아이콘 버튼이 붙는다.
-- 기존 edit link가 있으면 edit link 오른쪽에 붙는다.
-- 버튼이 중복 삽입되지 않는다.
-- Objectives heading이 없으면 아무것도 삽입하지 않는다.
-- 클릭 시 busy 상태가 표시된다.
-- 오류 시 토스트가 표시된다.
 
 ## CSS 원칙
 
@@ -398,4 +335,20 @@ harness/fixtures/fisheye-objectives-missing.html
 - Description 미리보기 패널에서 동영상은 `[VIDEO]` placeholder로만 표시된다.
 - 실패 시 토스트 또는 Objectives 영역에 오류가 표시된다.
 - 기존 Objectives 내용을 복원할 수 있다.
-- i18n YAML에 한국어/영어 문구가 준비된다.
+- 한국어/영어 문구가 i18n에 준비된다.
+
+## 수동 검증 체크리스트
+
+- [ ] 저장된 Fisheye 리뷰 페이지 → Objectives 라벨 우측에 아이콘 버튼 표시
+- [ ] edit link가 있으면 그 오른쪽에 붙고, heading 줄높이가 흔들리지 않음
+- [ ] 페이지 전환/재렌더 후에도 버튼이 중복 삽입되지 않음
+- [ ] 다른 사이트(Jira 등) → 버튼 없음, console 로그 없음
+- [ ] Objectives heading 없는 Fisheye 페이지 → console.info 진단 로그
+- [ ] 클릭 → busy(중복 클릭 차단) → 내용 표시 → idle 복귀
+- [ ] hover 시 아이콘 색만 변경, 기본 상태에 테두리·배경 없음
+- [ ] 키보드 focus → outline 표시
+- [ ] Jira URL 미설정 → 우측 하단 오류 팝업, Objectives 미변경
+- [ ] Jira 미로그인 → 로그인 안내 팝업, Objectives 미변경
+- [ ] 이슈 키 없는 리뷰 → 토스트
+- [ ] 내용 표시 후 `원래 내용` → 원본 Objectives 복원
+- [ ] 새로고침 → 원본 Objectives (서버에 저장되지 않음)

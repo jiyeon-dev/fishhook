@@ -344,8 +344,8 @@ a.fishhook-version-tag--affects:hover {
   color: #3572b0;
 }
 
-.fishhook-objectives-inject.markup p.jira-wiki-h4-spacer,
-.fishhook-objectives-body--adf p.jira-wiki-h4-spacer {
+.fishhook-objectives-inject.markup p.jira-wiki-heading-spacer,
+.fishhook-objectives-body--adf p.jira-wiki-heading-spacer {
   margin: 0 !important;
   padding: 0 !important;
   height: 1em !important;
@@ -356,13 +356,63 @@ a.fishhook-version-tag--affects:hover {
   border: 0 !important;
 }
 
+/* Jira는 h1~h6를 크기 차이로 계층을 표현한다. 호스트 페이지 스타일이 heading을
+   전부 같은 굵은 글씨로 눌러버리므로 레벨별 크기를 직접 지정한다. */
+.fishhook-objectives-inject.markup h1,
+.fishhook-objectives-inject.markup h2,
+.fishhook-objectives-inject.markup h3,
 .fishhook-objectives-inject.markup h4,
-.fishhook-objectives-body--adf h4 {
+.fishhook-objectives-inject.markup h5,
+.fishhook-objectives-inject.markup h6,
+.fishhook-objectives-body--adf h1,
+.fishhook-objectives-body--adf h2,
+.fishhook-objectives-body--adf h3,
+.fishhook-objectives-body--adf h4,
+.fishhook-objectives-body--adf h5,
+.fishhook-objectives-body--adf h6 {
   display: block !important;
   margin: 0 0 0.5em !important;
-  font-size: 14px !important;
   font-weight: 700 !important;
   line-height: 1.35 !important;
+  color: #172b4d !important;
+}
+
+.fishhook-objectives-inject.markup h1,
+.fishhook-objectives-body--adf h1 {
+  font-size: 20px !important;
+}
+
+.fishhook-objectives-inject.markup h2,
+.fishhook-objectives-body--adf h2 {
+  font-size: 18px !important;
+}
+
+.fishhook-objectives-inject.markup h3,
+.fishhook-objectives-body--adf h3 {
+  font-size: 16px !important;
+}
+
+.fishhook-objectives-inject.markup h4,
+.fishhook-objectives-body--adf h4 {
+  font-size: 14px !important;
+}
+
+.fishhook-objectives-inject.markup h5,
+.fishhook-objectives-body--adf h5 {
+  font-size: 13px !important;
+}
+
+.fishhook-objectives-inject.markup h6,
+.fishhook-objectives-body--adf h6 {
+  font-size: 12px !important;
+  color: #5e6c84 !important;
+}
+
+/* `h3. *text*` 처럼 heading 안에 strong/b가 들어오면 heading 굵기 위에 한 번 더
+   굵어져 과하게 보인다. heading 굵기를 그대로 물려받게 한다. */
+.fishhook-objectives-inject.markup :is(h1, h2, h3, h4, h5, h6) :is(strong, b),
+.fishhook-objectives-body--adf :is(h1, h2, h3, h4, h5, h6) :is(strong, b) {
+  font-weight: inherit !important;
 }
 
 .fishhook-objectives-inject.markup ul,

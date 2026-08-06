@@ -471,13 +471,13 @@
   }
 
   function addHeadingSpacers(doc) {
-    doc.querySelectorAll('h4').forEach((h4) => {
-      const previous = h4.previousElementSibling;
-      if (previous?.classList?.contains('jira-wiki-h4-spacer')) return;
+    doc.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((heading) => {
+      const previous = heading.previousElementSibling;
+      if (previous?.classList?.contains('jira-wiki-heading-spacer')) return;
       const spacer = doc.createElement('p');
-      spacer.className = 'jira-wiki-h4-spacer';
+      spacer.className = 'jira-wiki-heading-spacer';
       spacer.setAttribute('aria-hidden', 'true');
-      h4.parentNode.insertBefore(spacer, h4);
+      heading.parentNode.insertBefore(spacer, heading);
     });
   }
 

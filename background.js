@@ -478,18 +478,31 @@ function resolveMediaInHtml(html, adf, attachments, jiraBaseUrl, mediaOptions = 
 // Jira Cloud drops nodes it cannot convert to HTML and leaves
 // `<!-- ADF macro (type = 'table') -->` behind. Tables with merged cells always
 // take that path, so rebuild them from the raw ADF and splice them back in.
-function restoreAdfMacroPlaceholders(html, adf, attachments, jiraBaseUrl, mediaOptions = {}) {
-  const fill = self.FishHookAdfHtml?.fillAdfMacroPlaceholders;
-  if (!fill || !adf) return html;
-
-  return fill(html, adf, {
+function adfRenderOptions(attachments, jiraBaseUrl, mediaOptions = {}) {
+  return {
     renderMedia(node) {
       if (!node?.attrs?.id) return '';
       const attachment = matchMediaToAttachment(normalizeAdfMediaNode(node), attachments);
       if (!attachment) return '';
       return createMediaElementHtml(attachment, jiraBaseUrl, mediaOptions);
     },
-  });
+  };
+}
+
+function restoreAdfMacroPlaceholders(html, adf, attachments, jiraBaseUrl, mediaOptions = {}) {
+  const fill = self.FishHookAdfHtml?.fillAdfMacroPlaceholders;
+  if (!fill || !adf) return html;
+
+  return fill(html, adf, adfRenderOptions(attachments, jiraBaseUrl, mediaOptions));
+}
+
+// A code block ending in `\` swallows its closing `{noformat}`, and every fence
+// after it pairs off by one - prose inside code panels, code inside paragraphs,
+// tables reduced to raw `||...||`. Re-render the document tail from the ADF.
+function restoreCascadedCodeFences(html, adf, attachments, jiraBaseUrl, mediaOptions = {}) {
+  const repair = self.FishHookAdfHtml?.repairCascadedCodeFences;
+  if (!repair || !adf) return html;
+  return repair(html, adf, adfRenderOptions(attachments, jiraBaseUrl, mediaOptions));
 }
 
 // A code block nested in a list comes back from Jira as an empty code panel plus a
@@ -509,8 +522,14 @@ function parseIssueDescription(json, jiraBaseUrl, mediaOptions = {}) {
   const rendered = json?.renderedFields?.description;
   if (rendered && String(rendered).trim()) {
     const html = restoreSplitCodeBlocks(
-      restoreAdfMacroPlaceholders(
-        resolveMediaInHtml(sanitizeHtml(rendered), adf, attachments, jiraBaseUrl, mediaOptions),
+      restoreCascadedCodeFences(
+        restoreAdfMacroPlaceholders(
+          resolveMediaInHtml(sanitizeHtml(rendered), adf, attachments, jiraBaseUrl, mediaOptions),
+          adf,
+          attachments,
+          jiraBaseUrl,
+          mediaOptions
+        ),
         adf,
         attachments,
         jiraBaseUrl,

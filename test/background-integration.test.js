@@ -176,3 +176,33 @@ test('puts a list-nested code block back into its empty code panel', () => {
   assert.doesNotMatch(result.html, /<p>ln -sf/);
   assert.match(result.html, /<pre>ln -sf \/usr\/bin\/unzip[\s\S]*pkill &amp;&amp; \\<\/pre>/);
 });
+
+test('rebuilds the tail after a trailing backslash swallows a code fence', () => {
+  const code = '%UserProfile%\\.wix\\extensions\\\n   └── WixToolset.Util.wixext\\7.0.0\\';
+  const json = issue(
+    '<p>머리말</p>\n' +
+      '<div class="code panel" style="border-width: 1px;"><div class="codeContent panelContent">' +
+      `<pre class="code-plain">${code}{noformat}\n\n*중요*: 경로에 배치해야 합니다.\n\n</pre>` +
+      '</div></div>\n<p>wix eula accept wix7</p>\n' +
+      '<div class="code panel" style="border-width: 1px;"><div class="codeContent panelContent">' +
+      '<pre class="code-plain">||구분||변경 전||변경 후||\n</pre></div></div>'
+  );
+  json.fields.description.content = [
+    paragraph('머리말'),
+    { type: 'codeBlock', content: [{ type: 'text', text: code }] },
+    paragraph('중요: 경로에 배치해야 합니다.'),
+    { type: 'codeBlock', content: [{ type: 'text', text: 'wix eula accept wix7' }] },
+    MERGED_TABLE_ADF,
+  ];
+
+  const result = parse(json);
+
+  assert.doesNotMatch(result.html, /\{noformat\}/);
+  assert.doesNotMatch(result.html, /\|\|구분\|\|/);
+  assert.match(result.html, /<p>머리말<\/p>/);
+  assert.match(result.html, /<p>중요: 경로에 배치해야 합니다\.<\/p>/);
+  assert.match(result.html, /<pre><code>wix eula accept wix7<\/code><\/pre>/);
+  assert.match(result.html, /<table class="wiki-table"[^>]*>[\s\S]*rowspan="2"/);
+  // Media inside the re-rendered tail still resolves to an absolute Jira URL.
+  assert.match(result.html, /src="https:\/\/acme\.atlassian\.net\/secure\/attachment\/9001\/before\.png"/);
+});

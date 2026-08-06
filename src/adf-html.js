@@ -363,10 +363,78 @@
     return source;
   }
 
+  // A code block whose last line ends with `\` eats its own closing `{noformat}`:
+  // in wiki markup the backslash escapes the newline, so the fence is pulled onto
+  // the code's last line and stops closing anything. Every later fence then pairs
+  // off by one - prose renders inside code panels, code renders as paragraphs, and
+  // tables survive only as raw `||...||` markup - for the whole rest of the
+  // document. Nothing downstream of the break is trustworthy, so we cut the HTML
+  // at the damaged panel and re-render the tail from the raw ADF.
+  const PRE_RE = /<pre\b[^>]*>([\s\S]*?)<\/pre>/gi;
+  const PANEL_OPEN_RE = /<div class="(?:code|preformatted) panel\b/gi;
+
+  // Where to cut: the wrapper Jira puts around the panel, so we do not leave
+  // orphaned `<div>`s behind. Falls back to the `<pre>` itself.
+  function panelStart(source, preStart) {
+    PANEL_OPEN_RE.lastIndex = 0;
+    let cut = preStart;
+    let match;
+    while ((match = PANEL_OPEN_RE.exec(source)) && match.index < preStart) {
+      cut = match.index;
+    }
+    return cut;
+  }
+
+  // The index in `doc.content` of the top-level node whose subtree holds this
+  // code block - the code block may sit inside a list, and slicing has to happen
+  // at the top level to keep the HTML well formed.
+  function topLevelIndexOfCodeBlock(adf, wanted) {
+    const top = Array.isArray(adf?.content) ? adf.content : [];
+    for (let i = 0; i < top.length; i += 1) {
+      const blocks = collectNodesByType(top[i]).get('codeBlock') || [];
+      if (blocks.some((block) => comparableCode(codeBlockText(block)) === wanted)) return i;
+    }
+    return -1;
+  }
+
+  function repairCascadedCodeFences(html, adf, options) {
+    const source = String(html || '');
+    if (!source || !adf) return source;
+    FENCE_RE.lastIndex = 0;
+    if (!FENCE_RE.test(source)) return source;
+
+    PRE_RE.lastIndex = 0;
+    let match;
+    while ((match = PRE_RE.exec(source))) {
+      const text = decodeEntities(match[1]);
+      FENCE_RE.lastIndex = 0;
+      const fence = FENCE_RE.exec(text);
+      if (!fence) continue;
+
+      // Only the text before the fence belongs to this code block; everything
+      // after it is swallowed prose.
+      const wanted = comparableCode(text.slice(0, fence.index));
+      if (!wanted || wanted === comparableCode(text)) continue;
+
+      const index = topLevelIndexOfCodeBlock(adf, wanted);
+      if (index < 0) continue;
+
+      const tail = adf.content
+        .slice(index)
+        .map((node) => renderNode(node, options))
+        .join('');
+      if (!tail) continue;
+
+      return source.slice(0, panelStart(source, match.index)) + tail;
+    }
+    return source;
+  }
+
   return {
     renderAdfNodeToHtml: renderNode,
     fillAdfMacroPlaceholders,
     repairSplitCodeBlocks,
+    repairCascadedCodeFences,
     escapeHtml,
   };
 });

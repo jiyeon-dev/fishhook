@@ -7,6 +7,7 @@ const {
   renderAdfNodeToHtml,
   fillAdfMacroPlaceholders,
   repairSplitCodeBlocks,
+  repairCascadedCodeFences,
 } = require('../src/adf-html.js');
 
 function paragraph(text) {
@@ -302,4 +303,71 @@ test('repairSplitCodeBlocks is a no-op without ADF, fences, or code blocks', () 
     SPLIT_CODE_HTML
   );
   assert.strictEqual(repairSplitCodeBlocks('<p>x</p>', splitCodeAdf()), '<p>x</p>');
+});
+
+// A code block whose last line ends with `\` eats its own closing `{noformat}`:
+// the backslash escapes the newline before the fence. Every later fence then
+// pairs off by one, so prose lands inside code panels and code lands in
+// paragraphs for the whole rest of the document.
+const CASCADE_CODE = '%UserProfile%\\.wix\\extensions\\\n   └── WixToolset.Util.wixext\\7.0.0\\';
+
+function cascadeAdf() {
+  return {
+    type: 'doc',
+    content: [
+      paragraph('폴더를 동일한 위치에 복사:'),
+      { type: 'codeBlock', content: [{ type: 'text', text: CASCADE_CODE }] },
+      paragraph('중요: 경로에 배치해야 합니다.'),
+      { type: 'codeBlock', content: [{ type: 'text', text: 'wix eula accept wix7' }] },
+      MERGED_TABLE,
+    ],
+  };
+}
+
+const CASCADE_HTML =
+  '<p>폴더를 동일한 위치에 복사:</p>\n' +
+  '<div class="code panel" style="border-width: 1px;"><div class="codeContent panelContent">' +
+  '<pre class="code-plain">%UserProfile%\\.wix\\extensions\\\n' +
+  '   └── WixToolset.Util.wixext\\7.0.0\\{noformat}\n\n' +
+  '*중요*: 경로에 배치해야 합니다.\n\n</pre></div></div>\n' +
+  '<p>wix eula accept wix7</p>\n' +
+  '<div class="code panel" style="border-width: 1px;"><div class="codeContent panelContent">' +
+  '<pre class="code-plain">||변경 전||\n</pre></div></div>';
+
+test('rebuilds the document tail when a trailing backslash swallows a code fence', () => {
+  const out = repairCascadedCodeFences(CASCADE_HTML, cascadeAdf());
+
+  assert.doesNotMatch(out, /\{noformat\}/);
+  // The head Jira got right is left untouched.
+  assert.match(out, /^<p>폴더를 동일한 위치에 복사:<\/p>\n/);
+  // The damaged code block is whole again, trailing backslash and all.
+  assert.match(out, /WixToolset\.Util\.wixext\\7\.0\.0\\<\/code><\/pre>/);
+  // The prose that was swallowed is prose again, and the code that leaked out is code.
+  assert.match(out, /<p>중요: 경로에 배치해야 합니다\.<\/p>/);
+  assert.match(out, /<pre><code>wix eula accept wix7<\/code><\/pre>/);
+  assert.doesNotMatch(out, /<p>wix eula accept wix7<\/p>/);
+  // The table that was stranded as wiki markup inside a code panel comes back.
+  assert.doesNotMatch(out, /\|\|변경 전\|\|/);
+  assert.match(out, /rowspan="2"/);
+});
+
+test('cascade repair renders media in the rebuilt tail through the host hook', () => {
+  const adf = cascadeAdf();
+  adf.content.push({
+    type: 'mediaSingle',
+    content: [{ type: 'media', attrs: { id: 'abc', type: 'file' } }],
+  });
+  const out = repairCascadedCodeFences(CASCADE_HTML, adf, {
+    renderMedia: (node) => `<img src="/x/${node.attrs.id}">`,
+  });
+  assert.match(out, /<img src="\/x\/abc">/);
+});
+
+test('cascade repair leaves healthy documents alone', () => {
+  const healthy =
+    '<p>설명</p><div class="code panel"><div class="codeContent panelContent">' +
+    '<pre class="code-plain">wix eula accept wix7</pre></div></div><p>{noformat} 이야기</p>';
+  assert.strictEqual(repairCascadedCodeFences(healthy, cascadeAdf()), healthy);
+  assert.strictEqual(repairCascadedCodeFences(CASCADE_HTML, null), CASCADE_HTML);
+  assert.strictEqual(repairCascadedCodeFences('<p>x</p>', cascadeAdf()), '<p>x</p>');
 });

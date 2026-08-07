@@ -8,6 +8,7 @@
   let overlay = null;
   let keyDownHandler = null;
   let listenerReady = false;
+  let onCloseCallback = null;
 
   function escapeAttr(text) {
     return String(text || '')
@@ -43,7 +44,7 @@
     overlay.setAttribute('aria-label', closeAria);
     overlay.innerHTML =
       `<button type="button" class="fishhook-image-lightbox__close" aria-label="${escapeAttr(closeAria)}">×</button>` +
-      `<img class="fishhook-image-lightbox__img" alt="" />`;
+      `<div class="fishhook-image-lightbox__stage"></div>`;
 
     overlay.querySelector('.fishhook-image-lightbox__close')?.addEventListener('click', (event) => {
       event.preventDefault();
@@ -52,7 +53,9 @@
     });
 
     overlay.addEventListener('click', (event) => {
-      if (event.target === overlay) close();
+      if (event.target === overlay || event.target.classList?.contains('fishhook-image-lightbox__stage')) {
+        close();
+      }
     });
 
     document.body.appendChild(overlay);
@@ -65,25 +68,37 @@
     overlay.classList.remove('fishhook-image-lightbox--open');
     document.body.classList.remove('fishhook-image-lightbox-active');
 
-    const img = overlay.querySelector('.fishhook-image-lightbox__img');
-    if (img) {
-      img.removeAttribute('src');
-      img.alt = '';
-    }
+    const stage = overlay.querySelector('.fishhook-image-lightbox__stage');
+    if (stage) stage.innerHTML = '';
 
     if (keyDownHandler) {
       document.removeEventListener('keydown', keyDownHandler);
       keyDownHandler = null;
     }
+
+    // Lets the opener release blob URLs it created for the preview.
+    const callback = onCloseCallback;
+    onCloseCallback = null;
+    if (typeof callback === 'function') {
+      try {
+        callback();
+      } catch (_) {}
+    }
   }
 
-  function open(img) {
+  // Shows an arbitrary element (image, iframe, <pre>) in the same overlay so the
+  // close affordances stay identical across attachment types.
+  function openNode(node, options = {}) {
+    if (!node) return;
     const layer = ensureOverlay();
-    const lite = layer.querySelector('.fishhook-image-lightbox__img');
-    if (!lite) return;
+    const stage = layer.querySelector('.fishhook-image-lightbox__stage');
+    if (!stage) return;
 
-    lite.src = img.currentSrc || img.src;
-    lite.alt = img.getAttribute('alt') || '';
+    onCloseCallback = typeof options.onClose === 'function' ? options.onClose : null;
+
+    stage.innerHTML = '';
+    stage.appendChild(node);
+    layer.setAttribute('aria-label', options.label || closeAria);
     layer.hidden = false;
     layer.classList.add('fishhook-image-lightbox--open');
     document.body.classList.add('fishhook-image-lightbox-active');
@@ -95,6 +110,14 @@
       };
       document.addEventListener('keydown', keyDownHandler);
     }
+  }
+
+  function open(img) {
+    const lite = document.createElement('img');
+    lite.className = 'fishhook-image-lightbox__img';
+    lite.src = img.currentSrc || img.src;
+    lite.alt = img.getAttribute('alt') || '';
+    openNode(lite, { label: lite.alt || closeAria });
   }
 
   function onPreviewClick(event) {
@@ -117,5 +140,5 @@
     ensureListener();
   }
 
-  window.FishHookImageLightbox = { attach, close };
+  window.FishHookImageLightbox = { attach, close, openNode };
 })();

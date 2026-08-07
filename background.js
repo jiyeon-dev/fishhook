@@ -623,6 +623,30 @@ function parseIssueType(json) {
   return { name, subtask: issuetype?.subtask === true };
 }
 
+// The `attachment` field is already fetched for ADF media matching; this exposes
+// the same array to the UI so attachments that never appear inline are visible
+// too. `content` is a full URL on Cloud and a `/secure/attachment/...` path on
+// Server, so both go through `attachmentContentUrl`.
+function parseAttachmentList(json, jiraBaseUrl) {
+  const list = Array.isArray(json?.fields?.attachment) ? json.fields.attachment : [];
+  const attachments = [];
+  for (const item of list) {
+    const filename = String(item?.filename || '').trim();
+    const url = attachmentContentUrl(jiraBaseUrl, item);
+    if (!filename || !url) continue;
+    const size = Number(item?.size);
+    attachments.push({
+      id: item?.id == null ? '' : String(item.id),
+      filename,
+      url,
+      mimeType: String(item?.mimeType || '').trim(),
+      size: Number.isFinite(size) && size >= 0 ? size : null,
+      created: String(item?.created || '').trim(),
+    });
+  }
+  return attachments;
+}
+
 function parseIssueVersions(json, jiraBaseUrl, issueKey) {
   const projectKey = projectKeyOf(json, issueKey);
   return {
@@ -679,6 +703,7 @@ async function fetchJiraIssue(issueKey, options = {}) {
       const meta = {
         ...parseIssueVersions(json, jiraBaseUrl, key),
         issueType: parseIssueType(json),
+        attachments: parseAttachmentList(json, jiraBaseUrl),
       };
       const parsed = parseIssueDescription(json, jiraBaseUrl, { includeVideo });
       if (parsed) {
@@ -725,6 +750,21 @@ function isAllowedJiraAttachmentUrl(url, jiraBaseUrl) {
   }
 }
 
+// chrome.runtime.sendMessage serializes with JSON, not structured clone. An
+// ArrayBuffer crosses the boundary as `{}`, and `new Blob([{}])` silently
+// becomes the 15-byte string "[object Object]" — a broken image, a markdown
+// preview showing that literal text. Bytes have to travel as a string.
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  // String.fromCharCode.apply overflows the stack past ~64k arguments.
+  const CHUNK = 0x8000;
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += CHUNK) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(offset, offset + CHUNK));
+  }
+  return btoa(binary);
+}
+
 async function fetchJiraAttachment(url) {
   const jiraBaseUrl = await getJiraBaseUrl();
   if (!jiraBaseUrl) {
@@ -752,7 +792,7 @@ async function fetchJiraAttachment(url) {
 
     const buffer = await response.arrayBuffer();
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
-    return { ok: true, buffer, contentType };
+    return { ok: true, base64: arrayBufferToBase64(buffer), contentType };
   } catch (error) {
     return { ok: false, error: String(error) };
   }

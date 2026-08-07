@@ -182,12 +182,27 @@ content/media-loader.js
   -> chrome.runtime.sendMessage({ type: 'FISHHOOK_FETCH_JIRA_ATTACHMENT', url })
 background.js
   -> 설정된 Jira 호스트의 attachment URL만 허용
-  -> fetch(url, { credentials: 'include' }) -> ArrayBuffer 반환
+  -> fetch(url, { credentials: 'include' })
+  -> arrayBufferToBase64() -> { ok, base64, contentType }
 content/media-loader.js
-  -> Blob -> URL.createObjectURL -> video.src
+  -> base64ToBlob() -> URL.createObjectURL -> video.src
 ```
 
 허용 URL 패턴: `{jiraBaseUrl}`과 동일 호스트의 `/rest/api/.../attachment/content/...` 또는 `/secure/attachment/...`
+
+### 바이트는 반드시 문자열로 건넨다
+
+`chrome.runtime.sendMessage`는 MV3에서 **JSON 직렬화**를 쓴다. 구조화 복제가
+아니다. `ArrayBuffer`를 그대로 응답에 담으면 content script 쪽에는 `{}`가
+도착하고, `new Blob([{}])`은 조용히 15바이트짜리 `"[object Object]"` 문자열이
+된다 — 깨진 이미지, `[object Object]`만 보이는 텍스트 미리보기.
+
+그래서 background가 `arrayBufferToBase64()`로 인코딩하고 content script가
+`base64ToBlob()`으로 되돌린다. `String.fromCharCode.apply`는 인자가 약 64k를
+넘으면 스택이 터지므로 `0x8000` 단위로 끊어서 인코딩한다.
+
+`test/attachment-transfer.test.js`가 이 왕복을 고정한다. 첫 단언이 "ArrayBuffer는
+메시지 경계를 넘지 못한다"는 사실 자체를 검증한다.
 
 ## content/media-loader.js
 

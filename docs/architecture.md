@@ -19,11 +19,13 @@ Fisheye 리뷰 페이지 (/cru/...)
          ?fields=summary,description,attachment,project,issuetype,fixVersions,versions
          &expand=renderedFields
     -> renderedFields.description 후처리 (sanitize -> 미디어 해석 -> ADF 폴백)
-    -> { ok, html/text, issueTitle, issueType, fixVersions, affectsVersions }
+    -> { ok, html/text, issueTitle, issueType, fixVersions, affectsVersions,
+         attachments }
 
   content/description-renderer.js  -> 코드블록/인라인 코드/placeholder 보정
   content/media-loader.js          -> <video> hydration (background 경유 blob URL)
-  content/image-lightbox.js        -> 이미지 클릭 전체화면
+  content/image-lightbox.js        -> 클릭 전체화면 오버레이 (이미지/PDF/텍스트)
+  content/attachment-list.js       -> 본문 하단 첨부파일 목록 + 타입별 미리보기
     -> Objectives 영역 주입 또는 우측 하단 패널 렌더
 ```
 
@@ -41,15 +43,18 @@ API 버전은 `3` → `2` → `latest` 순으로 시도한다. Cloud와 Server/D
 | 이미지 | `<img src>` + 클릭 확대 | 동일 (최대 높이 420px) |
 | 원복 | 원래 Objectives 본문 복원 가능 | 패널 닫기 |
 
+첨부파일 목록은 두 위치 모두 본문 맨 아래에 같은 모양으로 붙는다.
+
 설계 상세: [objectives-icon-button-design.md](./objectives-icon-button-design.md),
-미디어 규칙: [jira-media-handling.md](./jira-media-handling.md)
+미디어 규칙: [jira-media-handling.md](./jira-media-handling.md),
+첨부파일 목록: [attachment-list-design.md](./attachment-list-design.md)
 
 ## 메시지 계약
 
 | 타입 | 방향 | 필드 |
 |------|------|------|
 | `FISHHOOK_FETCH_JIRA_CONTENT` | content → background | `issueKey`, `includeVideo` |
-| `FISHHOOK_FETCH_JIRA_ATTACHMENT` | content → background | `url` |
+| `FISHHOOK_FETCH_JIRA_ATTACHMENT` | content → background | `url` → `{ ok, base64, contentType }` |
 | `FISHHOOK_SHOW_DESCRIPTION_PREVIEW` | popup → content | — |
 
 fetch 실패 코드: `INVALID_ISSUE_KEY`, `JIRA_URL_NOT_CONFIGURED`,
@@ -115,6 +120,9 @@ node --test
 | `test/adf-html.test.js` | ADF → HTML 변환기 (병합 셀, 마크, 이스케이프, 자리표시자 치환) |
 | `test/background-integration.test.js` | 실제 `background.js`를 셰임에 올려 `parseIssueDescription` 검증 |
 | `test/attachment-matching.test.js` | ADF media ↔ 첨부파일 매칭 6단계 |
+| `test/attachment-list-parse.test.js` | `parseAttachmentList` — Cloud/Server content URL, 결측값 |
+| `test/attachment-list.test.js` | 첨부 목록 HTML 빌더, 타입 분류, 크기·날짜 포맷 |
+| `test/attachment-transfer.test.js` | 첨부 바이트의 base64 왕복 (메시지 경계 JSON 직렬화) |
 | `test/media-images.test.js` | 썸네일 승격, media card 치환, `includeVideo` |
 | `test/issue-versions.test.js` | fixVersions / affectsVersions / issueType 파싱 |
 

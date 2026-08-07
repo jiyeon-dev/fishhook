@@ -63,6 +63,9 @@ node --test
   |------|------|------|
   | `FISHHOOK_FETCH_JIRA_CONTENT` | content → background | 이슈 본문/메타 fetch (`includeVideo` 옵션) |
   | `FISHHOOK_FETCH_JIRA_ATTACHMENT` | content → background | 첨부파일 바이트 fetch (CORS 우회) |
+- **메시지 응답에 `ArrayBuffer`/`Blob`을 담지 않는다.** `chrome.runtime.sendMessage`는
+  JSON 직렬화라서 `{}`로 뭉개진다. 바이너리는 base64 문자열로 건넨다
+  ([jira-media-handling.md](docs/jira-media-handling.md) 참고).
   | `FISHHOOK_SHOW_DESCRIPTION_PREVIEW` | popup → content | 미리보기 패널 열기 |
 - storage 키는 `fishhook.` 접두사 (`chrome.storage.local`).
 - 사용자 노출 문구를 코드에 하드코딩하지 않는다. i18n 키를 쓴다.

@@ -157,11 +157,17 @@
         `${escapeHtml(labels.emptyBrowseHint)}</p>`;
     }
 
+    const attachmentsHtml = window.FishHookAttachmentList?.build
+      ? window.FishHookAttachmentList.build(data.attachments, labels)
+      : '';
+    if (attachmentsHtml) body.insertAdjacentHTML('beforeend', attachmentsHtml);
+
     window.FishHookMediaLoader?.hydrate(body)?.catch((error) => {
       console.warn('[fishhook][desc-panel] Failed to hydrate Jira media.', error);
     });
 
     window.FishHookImageLightbox?.attach(body, { closeAria: labels.closeAria });
+    window.FishHookAttachmentList?.attach(body, labels);
   }
 
   function resolvePanelTitle(issueTitle, issueKey, loading, labels) {

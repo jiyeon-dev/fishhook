@@ -13,6 +13,8 @@ function loadBackground() {
     console,
     URL,
     Blob,
+    atob,
+    btoa,
     fetch: async () => {
       throw new Error('network disabled in tests');
     },

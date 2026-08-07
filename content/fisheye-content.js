@@ -60,6 +60,9 @@
       panelResizeTitle: '왼쪽 위 모서리를 드래그해 크기 조절',
       panelResizeAria: '패널 크기 조절',
       panelDialogAria: 'Jira Description 미리보기',
+      attachmentsTitle: '첨부파일',
+      attachmentOpenInTab: '새 탭에서 열기',
+      attachmentOpenFailed: '첨부파일을 열지 못했습니다.',
     },
     en: {
       loadAriaLabel: 'Load Jira content',
@@ -91,6 +94,9 @@
       panelResizeTitle: 'Drag the top-left corner to resize',
       panelResizeAria: 'Resize panel',
       panelDialogAria: 'Jira Description preview',
+      attachmentsTitle: 'Attachments',
+      attachmentOpenInTab: 'Open in a new tab',
+      attachmentOpenFailed: 'Could not open the attachment.',
     },
   };
 
@@ -543,6 +549,15 @@
       console.warn(LOG, 'Failed to hydrate Jira media.', error);
     });
     window.FishHookImageLightbox?.attach(root, { closeAria: t('panelCloseAria') });
+    window.FishHookAttachmentList?.attach(root, getAttachmentLabels());
+  }
+
+  function getAttachmentLabels() {
+    return {
+      attachmentsTitle: t('attachmentsTitle'),
+      attachmentOpenInTab: t('attachmentOpenInTab'),
+      onError: () => showToast(t('attachmentOpenFailed'), 'error'),
+    };
   }
 
   function renderJiraBody(data) {
@@ -563,7 +578,11 @@
       bodyHtml = `<p class="wiki-p">${escapeHtml(t('loadFailed'))}</p>`;
     }
 
-    return `<div class="fishhook-objectives-body fishhook-objectives-body--adf">${bodyHtml}</div>`;
+    const attachmentsHtml = window.FishHookAttachmentList?.build
+      ? window.FishHookAttachmentList.build(data.attachments, getAttachmentLabels())
+      : '';
+
+    return `<div class="fishhook-objectives-body fishhook-objectives-body--adf">${bodyHtml}${attachmentsHtml}</div>`;
   }
 
   function showObjectivesContent(data, issueKey, issueUrl) {
@@ -643,6 +662,7 @@
       resizeAria: t('panelResizeAria'),
       dialogAria: t('panelDialogAria'),
       openJira: t('openJira'),
+      ...getAttachmentLabels(),
     };
   }
 

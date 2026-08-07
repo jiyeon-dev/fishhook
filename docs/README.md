@@ -4,6 +4,7 @@
 |------|------|
 | [architecture.md](./architecture.md) | 전체 흐름, 메시지 계약, HTML 파이프라인, 테스트 범위 — **여기부터** |
 | [jira-media-handling.md](./jira-media-handling.md) | 이미지·동영상 처리. 첨부파일 매칭, 썸네일 승격, media card, `includeVideo` |
+| [attachment-list-design.md](./attachment-list-design.md) | 본문 하단 첨부파일 목록: 표시 규칙, 타입 분류, 미리보기와 다운로드 |
 | [adf-table-fallback.md](./adf-table-fallback.md) | 병합 셀(rowspan/colspan) 표가 사라지는 문제와 ADF → HTML 복원 |
 | [objectives-icon-button-design.md](./objectives-icon-button-design.md) | Objectives 아이콘 버튼: 위치, 상태, 클릭 흐름, 활성화 조건 |
 | [options-page-design.md](./options-page-design.md) | 환경설정 페이지와 툴바 팝업: 설정 항목, 검증, 토스트 |

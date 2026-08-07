@@ -13,6 +13,17 @@
     }
   }
 
+  // Mirrors `arrayBufferToBase64` in background.js — see the note there for why
+  // the bytes cross the message boundary as a string.
+  function base64ToBlob(base64, contentType) {
+    const binary = atob(String(base64 || ''));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: contentType || 'application/octet-stream' });
+  }
+
   function fetchAttachmentBlob(url) {
     return new Promise((resolve, reject) => {
       try {
@@ -25,11 +36,7 @@
             reject(new Error(response?.error || 'FETCH_FAILED'));
             return;
           }
-          resolve(
-            new Blob([response.buffer], {
-              type: response.contentType || 'application/octet-stream',
-            })
-          );
+          resolve(base64ToBlob(response.base64, response.contentType));
         });
       } catch (error) {
         reject(error);
@@ -75,5 +82,5 @@
     await Promise.all([...elements].map((el) => hydrateElement(el)));
   }
 
-  window.FishHookMediaLoader = { hydrate };
+  window.FishHookMediaLoader = { hydrate, fetchBlob: fetchAttachmentBlob, base64ToBlob };
 })();

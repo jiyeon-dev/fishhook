@@ -37,7 +37,7 @@ Jira 내용은 브라우저의 **Jira 로그인 세션**(`credentials: 'include'
 ## 구조
 
 ```text
-manifest.json                    # MV3, content script 6개 + service worker
+manifest.json                    # MV3, content script 7개 + service worker
 background.js                    # Jira REST 호출, ADF/첨부파일 해석, attachment fetch 프록시
 src/
   adf-html.js                    # ADF -> HTML 폴백 (병합 셀 표 복원)
@@ -50,6 +50,7 @@ content/
   media-loader.js                # 동영상 hydration (background 경유 blob URL)
   image-lightbox.js              # 클릭 전체화면 오버레이 (이미지/PDF/텍스트 공용)
   attachment-list.js             # 본문 하단 첨부파일 목록과 미리보기
+  issue-meta.js                  # 이슈 타입/상태/Fix·Affects versions 줄 (배너·패널 공용)
 options/, popup/                 # 환경설정 페이지, 툴바 팝업
 test/                            # node --test 기반 테스트
 docs/                            # 설계·구현 문서 (docs/README.md 참고)

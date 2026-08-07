@@ -25,7 +25,7 @@ Fisheye review page
 ```
 
 주입된 내용은 Fisheye 서버에 저장하지 않는다.
-페이지 새로고침 또는 원래 내용 복원 시 기존 Objectives 내용으로 돌아간다.
+페이지 새로고침 또는 원본 보기 복원 시 기존 Objectives 내용으로 돌아간다.
 
 저장된 Fisheye 경로가 없거나 현재 페이지가 저장된 Fisheye 경로와 다르면 아무 동작도 하지 않는다.
 Jira 경로가 없으면 Objectives 삽입을 시도하지 않고 우측 하단 오류 팝업을 표시한다.
@@ -141,6 +141,37 @@ Jira 로그인 실패 문구:
 Jira에 로그인되어 있지 않습니다. Jira에 먼저 로그인한 뒤 다시 시도해 주세요.
 ```
 
+## 이슈 메타 줄
+
+이슈 타입 · 상태 · Fix versions · Affects versions를 한 줄로 보여준다.
+마크업은 `content/issue-meta.js`(`FishHookIssueMeta.buildSegments`)가 만들고,
+**Objectives 주입 배너와 우측 하단 Description 패널이 같은 빌더를 쓴다.**
+
+- 이슈 타입 / 상태: 값이 없으면 세그먼트 자체를 그리지 않는다
+- Fix / Affects versions: 값이 없어도 `-` 자리표시자로 항상 자리를 지킨다
+- 상태 lozenge 색은 `statusCategory.key`(`new` / `indeterminate` / `done`)로 정한다.
+  상태 **이름**은 Jira 인스턴스마다 번역이 달라 색 판단에 쓰지 않는다
+- 불러오는 중이거나 fetch 실패로 필드가 하나도 없으면(`hasFields`) 줄을 감춘다.
+  그렇지 않으면 `-`만 두 개 뜬 줄이 남는다
+
+줄 배치는 화면마다 다르다. 배너는 이슈 키부터 `원본 보기`까지 한 줄로 이어 붙이고,
+패널은 폭이 좁아 **상태 다음에서 줄을 바꾼다** — 타입·상태가 첫 줄, 버전 그룹이
+둘째 줄이다. 그래서 `buildEntries`는 각 항목에 `group`(`issue` / `versions`)을
+달아 주고, 패널이 그 값으로 줄을 나눈다.
+
+버전 태그는 릴리스 리포트로 링크되며(`projects/{KEY}/versions/{id}/...`),
+id가 없으면 링크 없는 태그로 그린다.
+
+## Jira 링크
+
+별도의 "Jira로 이동" 버튼은 두지 않는다. Jira로 가는 링크는 **이슈 키 자체**다.
+
+- Objectives 주입 배너: 좌측 이슈 키(`GS-12687`)가 `<a>`이며 새 탭으로 이슈를 연다
+- 우측 하단 Description 패널: 헤더의 이슈 키(`.fishhook-desc-panel__source`)가 링크
+  — 불러오는 중이거나 실패한 상태에서는 이슈 키가 아니므로 링크를 걸지 않는다
+
+`openJira` 메시지는 라벨이 아니라 이 링크의 `title`(툴팁)로 쓴다.
+
 ## i18n
 
 런타임이 읽는 문구는 `src/i18n/i18n.js`의 인라인 메시지 객체에 있다.
@@ -154,7 +185,7 @@ objectives:
   loadAriaLabel: Jira 내용 불러오기
   loadTitle: Jira 내용을 Objectives에 표시
   loading: Jira 내용을 불러오는 중입니다.
-  restore: 원래 내용
+  restore: 원본 보기
   previewBanner: Jira 내용 미리보기
   openJira: Jira 열기
   jiraUrlRequired: Jira 경로가 설정되어 있지 않습니다. 환경설정에서 Jira 경로를 먼저 입력해 주세요.
@@ -171,7 +202,7 @@ objectives:
   loadAriaLabel: Load Jira content
   loadTitle: Show Jira content in Objectives
   loading: Loading Jira content.
-  restore: Restore original content
+  restore: View original
   previewBanner: Jira content preview
   openJira: Open Jira
   jiraUrlRequired: The Jira URL is not set. Add the Jira URL in settings first.
@@ -350,5 +381,17 @@ content/desc-panel.css
 - [ ] Jira URL 미설정 → 우측 하단 오류 팝업, Objectives 미변경
 - [ ] Jira 미로그인 → 로그인 안내 팝업, Objectives 미변경
 - [ ] 이슈 키 없는 리뷰 → 토스트
-- [ ] 내용 표시 후 `원래 내용` → 원본 Objectives 복원
+- [ ] 내용 표시 후 `원본 보기` → 원본 Objectives 복원
+- [ ] 배너에 이슈 타입 · 상태 · Fix versions · Affects versions가 한 줄로 보인다
+- [ ] Description 패널에도 같은 메타 줄이 헤더 아래에 보인다
+- [ ] 패널에서는 타입·상태 다음에 줄이 바뀌고, 버전 두 그룹이 아랫줄에 온다
+- [ ] 배너는 여전히 한 줄로 이어진다 (패널만 줄바꿈)
+- [ ] 상태 lozenge 색이 진행 상태(할 일 / 진행 중 / 완료)에 따라 달라진다
+- [ ] 불러오는 중 / Jira 미로그인 → 패널 메타 줄이 아예 보이지 않는다
+- [ ] 버전이 없는 이슈 → 두 그룹 모두 `-` 표시
+- [ ] 배너에 "Jira로 이동" 버튼이 없다
+- [ ] 배너의 이슈 키 클릭 → 새 탭으로 Jira 이슈 열림, hover 시 밑줄
+- [ ] Description 패널 헤더의 이슈 키 클릭 → 새 탭으로 Jira 이슈 열림
+- [ ] 패널이 불러오는 중 / 실패 상태일 때는 헤더 문구가 링크가 아니다
+- [ ] 패널 하단에 초록색 Jira 버튼 영역이 남아 있지 않다
 - [ ] 새로고침 → 원본 Objectives (서버에 저장되지 않음)

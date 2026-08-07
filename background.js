@@ -623,6 +623,17 @@ function parseIssueType(json) {
   return { name, subtask: issuetype?.subtask === true };
 }
 
+// `statusCategory.key` is the stable machine value (`new` / `indeterminate` /
+// `done`); the name is localized per Jira instance, so only the key drives color.
+function parseIssueStatus(json) {
+  const status = json?.fields?.status;
+  const name = String(status?.name || '').trim();
+  if (!name) return null;
+  const key = String(status?.statusCategory?.key || '').trim().toLowerCase();
+  const category = ['new', 'indeterminate', 'done'].includes(key) ? key : 'unknown';
+  return { name, category };
+}
+
 // The `attachment` field is already fetched for ADF media matching; this exposes
 // the same array to the UI so attachments that never appear inline are visible
 // too. `content` is a full URL on Cloud and a `/secure/attachment/...` path on
@@ -672,7 +683,7 @@ async function fetchJiraIssue(issueKey, options = {}) {
   for (const version of ['3', '2', 'latest']) {
     const apiUrl = `${jiraBaseUrl}/rest/api/${version}/issue/${encodeURIComponent(
       key
-    )}?fields=summary,description,attachment,project,issuetype,fixVersions,versions&expand=renderedFields`;
+    )}?fields=summary,description,attachment,project,issuetype,status,fixVersions,versions&expand=renderedFields`;
 
     try {
       const response = await fetch(apiUrl, {
@@ -703,6 +714,7 @@ async function fetchJiraIssue(issueKey, options = {}) {
       const meta = {
         ...parseIssueVersions(json, jiraBaseUrl, key),
         issueType: parseIssueType(json),
+        status: parseIssueStatus(json),
         attachments: parseAttachmentList(json, jiraBaseUrl),
       };
       const parsed = parseIssueDescription(json, jiraBaseUrl, { includeVideo });

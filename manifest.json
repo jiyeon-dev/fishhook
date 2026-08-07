@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "fishhook",
-  "version": "0.3.5",
+  "version": "0.4.1",
   "description": "Show Jira issue content inside Fisheye.",
   "permissions": ["storage", "scripting", "tabs"],
   "host_permissions": ["http://*/*", "https://*/*"],
@@ -16,6 +16,7 @@
         "content/media-loader.js",
         "content/image-lightbox.js",
         "content/attachment-list.js",
+        "content/issue-meta.js",
         "content/desc-panel.js",
         "content/fisheye-content.js"
       ],

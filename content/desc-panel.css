@@ -115,6 +115,22 @@ body.fishhook-desc-panel--resizing {
   color: #5e6c84;
 }
 
+.fishhook-desc-panel__source-link {
+  color: #3572b0;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.fishhook-desc-panel__source-link:hover {
+  color: #3572b0;
+  text-decoration: underline;
+}
+
+.fishhook-desc-panel__source-link:focus-visible {
+  outline: 2px solid #4c9aff;
+  outline-offset: 1px;
+}
+
 .fishhook-desc-panel__close {
   flex-shrink: 0;
   width: 28px;
@@ -142,6 +158,35 @@ body.fishhook-desc-panel--resizing {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   flex-shrink: 0;
+}
+
+.fishhook-desc-panel__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 8px 14px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #172b4d;
+  background: #f4f5f7;
+  border-top: 1px solid #ebecf0;
+}
+
+.fishhook-desc-panel__meta[hidden] {
+  display: none;
+}
+
+.fishhook-desc-panel__meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.fishhook-desc-panel__meta-sep {
+  margin: 0 -3px;
+  color: #7a869a;
 }
 
 .fishhook-desc-panel__body {
@@ -182,34 +227,6 @@ body.fishhook-desc-panel--resizing {
      fill the whole panel. Click opens the lightbox for the original. */
   max-height: 420px;
   box-sizing: border-box;
-}
-
-.fishhook-desc-panel__actions {
-  padding: 10px 14px 12px;
-  border-top: 1px solid #ebecf0;
-  flex-shrink: 0;
-}
-
-.fishhook-desc-panel__jira-open {
-  display: block;
-  width: 100%;
-  padding: 8px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #fff;
-  background: rgb(88, 137, 0);
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  text-align: center;
-  text-decoration: none;
-  box-sizing: border-box;
-}
-
-.fishhook-desc-panel__jira-open:hover {
-  background: rgb(68, 106, 0);
-  color: #fff;
-  text-decoration: none;
 }
 
 .fishhook-desc-panel__loading {

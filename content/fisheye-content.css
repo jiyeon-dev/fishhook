@@ -111,19 +111,54 @@
   color: #7a869a;
 }
 
-.fishhook-objectives-banner__issuetype {
+/* Shared by the Objectives banner and the Description preview panel
+   (content/issue-meta.js builds the markup for both). */
+.fishhook-issue-meta__type {
   color: #42526e;
   font-weight: 600;
 }
 
-.fishhook-objectives-banner__versions {
+.fishhook-issue-meta__status {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  padding: 1px 6px;
+  color: #42526e;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  background: #dfe1e6;
+  border-radius: 3px;
+}
+
+/* Colour comes from statusCategory, not the (localized) status name. */
+.fishhook-issue-meta__status--new {
+  color: #42526e;
+  background: #dfe1e6;
+}
+
+.fishhook-issue-meta__status--indeterminate {
+  color: #0747a6;
+  background: #deebff;
+}
+
+.fishhook-issue-meta__status--done {
+  color: #006644;
+  background: #e3fcef;
+}
+
+.fishhook-issue-meta__versions {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
 }
 
-.fishhook-objectives-banner__versions-label {
+.fishhook-issue-meta__versions-label {
   color: #42526e;
   font-size: 11px;
   font-weight: 700;
@@ -131,7 +166,7 @@
   letter-spacing: 0.04em;
 }
 
-.fishhook-objectives-banner__versions-empty {
+.fishhook-issue-meta__versions-empty {
   color: #7a869a;
   font-size: 11px;
   line-height: 16px;

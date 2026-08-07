@@ -71,6 +71,21 @@ test('returns no issue type when the field is missing or unnamed', () => {
   assert.strictEqual(bg.call('parseIssueType({ fields: { issuetype: { name: " " } } })'), null);
 });
 
+test('reads the status name and normalises the status category', () => {
+  const result = bg.call('parseIssueStatus({ fields: { status: __status } })', {
+    __status: { name: ' 해결됨 ', statusCategory: { key: 'Done' } },
+  });
+  assert.deepEqual(result, { name: '해결됨', category: 'done' });
+});
+
+test('marks an unrecognised or missing status category as unknown', () => {
+  const result = bg.call(
+    'parseIssueStatus({ fields: { status: { name: "Custom", statusCategory: { key: "undefined" } } } })'
+  );
+  assert.deepEqual(result, { name: 'Custom', category: 'unknown' });
+  assert.strictEqual(bg.call('parseIssueStatus({ fields: {} })'), null);
+});
+
 test('emits a plain tag when the version has no id to link to', () => {
   const result = parseVersions({ fields: { versions: [{ name: 'unscheduled' }] } });
   assert.strictEqual(result.affectsVersions[0].url, '');

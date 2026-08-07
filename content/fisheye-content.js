@@ -35,7 +35,7 @@
       loadTitle: 'Jira 내용을 Objectives에 표시',
       fallbackText: '내용 불러오기',
       loading: 'Jira 내용을 불러오는 중입니다.',
-      restore: '원래 내용',
+      restore: '원본 보기',
       openJira: 'Jira로 이동',
       fixVersions: 'Fix versions',
       affectsVersions: 'Affects versions',
@@ -69,7 +69,7 @@
       loadTitle: 'Show Jira content in Objectives',
       fallbackText: 'Load content',
       loading: 'Loading Jira content.',
-      restore: 'Restore original content',
+      restore: 'View original',
       openJira: 'Go to Jira',
       fixVersions: 'Fix versions',
       affectsVersions: 'Affects versions',
@@ -486,54 +486,26 @@
     objectivesInjected = false;
   }
 
-  function buildVersionTag(version, variant) {
-    const name = escapeHtml(String(version?.name || ''));
-    const className = `fishhook-version-tag fishhook-version-tag--${variant}`;
-    if (version?.url) {
-      return (
-        `<a class="${className}" href="${escapeHtml(version.url)}" ` +
-        `target="_blank" rel="noopener noreferrer">${name}</a>`
-      );
-    }
-    return `<span class="${className}">${name}</span>`;
-  }
-
-  function buildVersionGroup(labelKey, versions, variant) {
-    const list = Array.isArray(versions) ? versions.filter((item) => item && item.name) : [];
-    const value = list.length
-      ? list.map((version) => buildVersionTag(version, variant)).join('')
-      : `<span class="fishhook-objectives-banner__versions-empty">-</span>`;
-    return (
-      `<span class="fishhook-objectives-banner__versions">` +
-      `<span class="fishhook-objectives-banner__versions-label">${escapeHtml(t(labelKey))}</span>` +
-      value +
-      `</span>`
-    );
-  }
-
-  function buildIssueTypeSegment(issueType) {
-    const name = String(issueType?.name || '').trim();
-    if (!name) return '';
-    return `<span class="fishhook-objectives-banner__issuetype">${escapeHtml(name)}</span>`;
+  function getIssueMetaLabels() {
+    return {
+      fixVersions: t('fixVersions'),
+      affectsVersions: t('affectsVersions'),
+    };
   }
 
   function buildOverviewBanner(issueKey, issueUrl, data = {}) {
-    const link = issueUrl
-      ? `<a class="fishhook-objectives-banner__link" href="${escapeHtml(issueUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('openJira'))}</a>`
-      : '';
+    // The issue key itself is the Jira link — no separate "go to Jira" button.
+    const keySegment = issueUrl
+      ? `<a class="fishhook-objectives-banner__text fishhook-objectives-banner__link" href="${escapeHtml(issueUrl)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(t('openJira'))}">${escapeHtml(issueKey)}</a>`
+      : `<span class="fishhook-objectives-banner__text">${escapeHtml(issueKey)}</span>`;
     const separator = `<span class="fishhook-objectives-banner__sep" aria-hidden="true">·</span>`;
     // While loading there are no fields yet, so the "-" placeholders would lie.
     const fields = data.loading
       ? []
-      : [
-          buildIssueTypeSegment(data.issueType),
-          buildVersionGroup('fixVersions', data.fixVersions, 'fix'),
-          buildVersionGroup('affectsVersions', data.affectsVersions, 'affects'),
-        ];
+      : window.FishHookIssueMeta?.buildSegments(data, getIssueMetaLabels()) || [];
     const segments = [
-      `<span class="fishhook-objectives-banner__text">${escapeHtml(issueKey)}</span>`,
+      keySegment,
       ...fields,
-      link,
       `<button type="button" class="fishhook-objectives-restore">${escapeHtml(t('restore'))}</button>`,
     ].filter(Boolean);
     return (
@@ -662,6 +634,7 @@
       resizeAria: t('panelResizeAria'),
       dialogAria: t('panelDialogAria'),
       openJira: t('openJira'),
+      ...getIssueMetaLabels(),
       ...getAttachmentLabels(),
     };
   }

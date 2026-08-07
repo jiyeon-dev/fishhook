@@ -95,21 +95,54 @@
     });
   }
 
-  function setJiraOpenLink(panel, url, label) {
-    if (!panel || !url) return;
-    const actions = panel.querySelector('.fishhook-desc-panel__actions');
-    if (!actions) return;
-
-    let link = actions.querySelector('.fishhook-desc-panel__jira-open');
-    if (!link) {
-      link = document.createElement('a');
-      link.className = 'fishhook-desc-panel__jira-open';
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      actions.appendChild(link);
+  // The issue key in the header doubles as the Jira link; `url` is omitted while
+  // loading or on failure, when the source text is not an issue key.
+  function setPanelSource(panel, text, url, title) {
+    const source = panel?.querySelector('.fishhook-desc-panel__source');
+    if (!source) return;
+    source.textContent = '';
+    if (!url) {
+      source.textContent = String(text || '');
+      return;
     }
+    const link = document.createElement('a');
+    link.className = 'fishhook-desc-panel__source-link';
     link.href = url;
-    link.textContent = label || 'Open Jira';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    if (title) link.title = title;
+    link.textContent = String(text || '');
+    source.appendChild(link);
+  }
+
+  // Issue type / status / Fix versions / Affects versions, same fields and markup
+  // as the Objectives banner. Hidden while loading and on failure, when there are
+  // no field values to show.
+  // The panel is narrow, so the fields break into two lines — issue type/status,
+  // then the version groups — instead of wrapping wherever the width runs out.
+  function setPanelMeta(panel, data, labels) {
+    const row = panel?.querySelector('.fishhook-desc-panel__meta');
+    if (!row) return;
+    const meta = window.FishHookIssueMeta;
+    const entries =
+      data && !data.loading && meta?.hasFields(data) ? meta.buildEntries(data, labels) : [];
+    if (!entries.length) {
+      row.innerHTML = '';
+      row.hidden = true;
+      return;
+    }
+    const separator = `<span class="fishhook-desc-panel__meta-sep" aria-hidden="true">·</span>`;
+    row.innerHTML = ['issue', 'versions']
+      .map((group) => entries.filter((entry) => entry.group === group))
+      .filter((line) => line.length)
+      .map(
+        (line) =>
+          `<div class="fishhook-desc-panel__meta-line">` +
+          line.map((entry) => entry.html).join(separator) +
+          `</div>`
+      )
+      .join('');
+    row.hidden = false;
   }
 
   function wrapJiraMarkup(innerHtml) {
@@ -209,17 +242,20 @@
       `<div class="fishhook-desc-panel__header">` +
       `<div class="fishhook-desc-panel__title-wrap">` +
       `<span class="fishhook-desc-panel__title">${escapeHtml(displayTitle)}</span>` +
-      `<span class="fishhook-desc-panel__source">${escapeHtml(sourceLabel)}</span>` +
+      `<span class="fishhook-desc-panel__source"></span>` +
       `</div>` +
       `<button type="button" class="fishhook-desc-panel__close" title="${escapeHtml(labels.closeTitle)}" aria-label="${escapeHtml(labels.closeAria)}">×</button>` +
       `</div>` +
+      `<div class="fishhook-desc-panel__meta" hidden></div>` +
       `<div class="fishhook-desc-panel__body-label">${escapeHtml(labels.bodyLabel)}</div>` +
-      `<div class="fishhook-desc-panel__body"></div>` +
-      `<div class="fishhook-desc-panel__actions"></div>`;
+      `<div class="fishhook-desc-panel__body"></div>`;
 
-    if (issueUrl) {
-      setJiraOpenLink(panel, issueUrl, labels.openJira);
-    }
+    setPanelSource(
+      panel,
+      sourceLabel,
+      !loading && issueKey && issueUrl ? issueUrl : '',
+      labels.openJira
+    );
 
     const body = panel.querySelector('.fishhook-desc-panel__body');
     fillBody(body, { loading: Boolean(loading), html: '', text: '' }, labels, jiraHost);
@@ -240,20 +276,19 @@
     const issueTitle = data?.issueTitle || payload?.issueTitle || '';
     setPanelTitle(panel, issueTitle, issueKey);
 
-    const source = panel?.querySelector('.fishhook-desc-panel__source');
-    if (source) {
-      if (data?.loading) {
-        source.textContent = labels.sourceLoading;
-      } else if (data?.ok) {
-        source.textContent = issueKey || labels.sourceDefault;
-      } else {
-        source.textContent = labels.sourceFailed;
-      }
+    if (data?.loading) {
+      setPanelSource(panel, labels.sourceLoading, '');
+    } else if (data?.ok) {
+      setPanelSource(
+        panel,
+        issueKey || labels.sourceDefault,
+        issueKey && issueUrl ? issueUrl : '',
+        labels.openJira
+      );
+    } else {
+      setPanelSource(panel, labels.sourceFailed, '');
     }
-
-    if (issueUrl) {
-      setJiraOpenLink(panel, issueUrl, labels.openJira);
-    }
+    setPanelMeta(panel, data, labels);
     fillBody(panel.querySelector('.fishhook-desc-panel__body'), payload, labels, jiraHost);
     return panel;
   }

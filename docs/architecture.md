@@ -16,16 +16,17 @@ Fisheye 리뷰 페이지 (/cru/...)
   background.js (service worker)
     -> 저장된 Jira origin + 브라우저 Jira 세션
     -> GET /rest/api/{3|2|latest}/issue/{KEY}
-         ?fields=summary,description,attachment,project,issuetype,fixVersions,versions
+         ?fields=summary,description,attachment,project,issuetype,status,fixVersions,versions
          &expand=renderedFields
     -> renderedFields.description 후처리 (sanitize -> 미디어 해석 -> ADF 폴백)
-    -> { ok, html/text, issueTitle, issueType, fixVersions, affectsVersions,
+    -> { ok, html/text, issueTitle, issueType, status, fixVersions, affectsVersions,
          attachments }
 
   content/description-renderer.js  -> 코드블록/인라인 코드/placeholder 보정
   content/media-loader.js          -> <video> hydration (background 경유 blob URL)
   content/image-lightbox.js        -> 클릭 전체화면 오버레이 (이미지/PDF/텍스트)
   content/attachment-list.js       -> 본문 하단 첨부파일 목록 + 타입별 미리보기
+  content/issue-meta.js            -> 이슈 타입/상태/Fix·Affects versions 줄 (배너·패널 공용)
     -> Objectives 영역 주입 또는 우측 하단 패널 렌더
 ```
 
@@ -124,7 +125,8 @@ node --test
 | `test/attachment-list.test.js` | 첨부 목록 HTML 빌더, 타입 분류, 크기·날짜 포맷 |
 | `test/attachment-transfer.test.js` | 첨부 바이트의 base64 왕복 (메시지 경계 JSON 직렬화) |
 | `test/media-images.test.js` | 썸네일 승격, media card 치환, `includeVideo` |
-| `test/issue-versions.test.js` | fixVersions / affectsVersions / issueType 파싱 |
+| `test/issue-versions.test.js` | fixVersions / affectsVersions / issueType / status 파싱 |
+| `test/issue-meta.test.js` | 이슈 메타 줄 HTML 빌더 (타입·상태 lozenge·버전 태그, 이스케이프) |
 
 UI(Objectives 주입, 패널, 라이트박스)는 자동 테스트가 없다. 각 문서 하단의
 수동 검증 체크리스트로 확인한다.

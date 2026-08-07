@@ -67,7 +67,7 @@ objectives:
   loadTitle: Show Jira content in Objectives
   fallbackText: Load content
   loading: Loading Jira content.
-  restore: Restore original content
+  restore: View original
   openJira: Go to Jira
   fixVersions: Fix versions
   affectsVersions: Affects versions

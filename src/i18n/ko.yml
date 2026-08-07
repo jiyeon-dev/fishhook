@@ -67,7 +67,7 @@ objectives:
   loadTitle: Jira 내용을 Objectives에 표시
   fallbackText: 내용 불러오기
   loading: Jira 내용을 불러오는 중입니다.
-  restore: 원래 내용
+  restore: 원본 보기
   openJira: Jira로 이동
   fixVersions: Fix versions
   affectsVersions: Affects versions

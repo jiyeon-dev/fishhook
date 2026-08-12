@@ -83,13 +83,17 @@
         if (!href) return html;
         return `<a href="${escapeAttr(href)}" target="_blank" rel="noopener noreferrer">${html}</a>`;
       }
+      // `!important` because the injected stylesheet forces a default text color on
+      // every span/p/li/td to undo Fisheye's washed-out styles - see normalizeColorMarks.
       case 'textColor': {
         const color = safeColor(attrs.color);
-        return color ? `<span style="color:${escapeAttr(color)}">${html}</span>` : html;
+        return color ? `<span style="color:${escapeAttr(color)} !important">${html}</span>` : html;
       }
       case 'backgroundColor': {
         const color = safeColor(attrs.color);
-        return color ? `<span style="background-color:${escapeAttr(color)}">${html}</span>` : html;
+        return color
+          ? `<span style="background-color:${escapeAttr(color)} !important">${html}</span>`
+          : html;
       }
       default:
         return html;
@@ -572,7 +576,95 @@
     return source;
   }
 
+  // Jira Cloud renders a color mark as a class plus a CSS custom property:
+  //
+  //   <span data-text-custom-color="#0747a6" class="fabric-text-color-mark"
+  //         style="--custom-palette-color: var(--ds-text-accent-blue, #1558BC);">
+  //
+  // The `color` itself comes from Jira's own stylesheet (`.fabric-text-color-mark`),
+  // which Fisheye never loads, so the color is simply lost. Translate the mark into a
+  // real declaration. The `var()` fallback is preferred over the data attribute
+  // because it holds the design-token value Jira actually paints today; the data
+  // attribute keeps the older palette hex.
+  //
+  // `!important` is required: content/fisheye-content.css forces a default text color
+  // on every span/p/li/td/th/div to undo Fisheye's washed-out styles, and a stylesheet
+  // `!important` beats a plain inline declaration.
+  const TAG_RE = /<([a-z][a-z0-9]*)((?:"[^"]*"|'[^']*'|[^>"'])*)>/gi;
+  const STYLE_ATTR_RE = /(\sstyle\s*=\s*)(["'])([^"']*)\2/i;
+  const PALETTE_VAR_RE = /--custom-palette-color\s*:\s*([^;"']+)/i;
+  const VAR_FALLBACK_RE = /var\(\s*[^,()]+,\s*([^)]+)\)/i;
+  const COLOR_PROPS = new Set(['color', 'background-color']);
+
+  function colorMarkProperty(attrs) {
+    if (/data-background-custom-color|fabric-background-color-mark/i.test(attrs)) {
+      return 'background-color';
+    }
+    if (/data-text-custom-color|fabric-text-color-mark/i.test(attrs)) return 'color';
+    return '';
+  }
+
+  function markColorValue(attrs, property) {
+    const declared = PALETTE_VAR_RE.exec(attrs);
+    if (declared) {
+      const value = declared[1].trim();
+      const fallback = VAR_FALLBACK_RE.exec(value);
+      const picked = safeColor(fallback ? fallback[1] : value);
+      if (picked) return picked;
+    }
+    const dataAttr = property === 'color' ? 'text' : 'background';
+    const fromData = new RegExp(`data-${dataAttr}-custom-color\\s*=\\s*["']([^"']*)["']`, 'i').exec(attrs);
+    return fromData ? safeColor(fromData[1]) : '';
+  }
+
+  // Server/DC and older Cloud output carry a plain `color: ...`, which loses to the
+  // same stylesheet rule. Only values we recognize are touched, so `var(...)` and
+  // anything unparseable is left exactly as it was.
+  function forceImportant(styleBody) {
+    return styleBody
+      .split(';')
+      .map((part) => {
+        const colon = part.indexOf(':');
+        if (colon < 0) return part;
+        const prop = part.slice(0, colon).trim().toLowerCase();
+        if (!COLOR_PROPS.has(prop)) return part;
+        const value = part.slice(colon + 1).trim();
+        if (!safeColor(value)) return part;
+        return `${part.slice(0, colon)}:${value} !important`;
+      })
+      .join(';');
+  }
+
+  function withStyleDeclaration(attrs, declaration) {
+    if (STYLE_ATTR_RE.test(attrs)) {
+      return attrs.replace(STYLE_ATTR_RE, (all, prefix, quote, body) => {
+        const trimmed = body.trim().replace(/;\s*$/, '');
+        const merged = declaration ? `${trimmed ? `${trimmed};` : ''}${declaration}` : trimmed;
+        return `${prefix}${quote}${forceImportant(merged)}${quote}`;
+      });
+    }
+    if (!declaration) return attrs;
+    // Keep the trailing slash of a self-closing tag last.
+    const selfClosing = /\/\s*$/.exec(attrs);
+    const head = selfClosing ? attrs.slice(0, selfClosing.index) : attrs;
+    return `${head} style="${declaration}"${selfClosing ? ' /' : ''}`;
+  }
+
+  function normalizeColorMarks(html) {
+    const source = String(html || '');
+    if (!source) return source;
+    TAG_RE.lastIndex = 0;
+    return source.replace(TAG_RE, (all, tag, attrs) => {
+      const property = colorMarkProperty(attrs);
+      const color = property ? markColorValue(attrs, property) : '';
+      const declaration = color ? `${property}:${escapeAttr(color)} !important` : '';
+      if (!declaration && !STYLE_ATTR_RE.test(attrs)) return all;
+      return `<${tag}${withStyleDeclaration(attrs, declaration)}>`;
+    });
+  }
+
   return {
+    normalizeColorMarks,
     renderAdfNodeToHtml: renderNode,
     fillAdfMacroPlaceholders,
     repairSplitCodeBlocks,

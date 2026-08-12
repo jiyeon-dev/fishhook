@@ -71,6 +71,7 @@ fetch 실패 코드: `INVALID_ISSUE_KEY`, `JIRA_URL_NOT_CONFIGURED`,
 ```text
 renderedFields.description
   -> sanitizeHtml                  # script/iframe/이벤트 핸들러 제거
+  -> restoreColorMarks             # Jira 색상 마크 -> 인라인 color/background-color
   -> resolveMediaInHtml            # 썸네일→원본, 상대→절대, media card, error span
   -> restoreAdfMacroPlaceholders   # <!-- ADF macro (type='table') --> -> ADF에서 복원
   -> restoreCascadedCodeFences / restoreSplitCodeBlocks
@@ -118,7 +119,7 @@ node --test
 
 | 파일 | 범위 |
 |------|------|
-| `test/adf-html.test.js` | ADF → HTML 변환기 (병합 셀, 마크, 이스케이프, 자리표시자 치환) |
+| `test/adf-html.test.js` | ADF → HTML 변환기 (병합 셀, 마크, 색상 마크 번역, 이스케이프, 자리표시자 치환) |
 | `test/background-integration.test.js` | 실제 `background.js`를 셰임에 올려 `parseIssueDescription` 검증 |
 | `test/attachment-matching.test.js` | ADF media ↔ 첨부파일 매칭 6단계 |
 | `test/attachment-list-parse.test.js` | `parseAttachmentList` — Cloud/Server content URL, 결측값 |

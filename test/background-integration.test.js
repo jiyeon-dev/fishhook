@@ -256,3 +256,17 @@ test('rebuilds the tail after a trailing backslash swallows a code fence', () =>
   // Media inside the re-rendered tail still resolves to an absolute Jira URL.
   assert.match(result.html, /src="https:\/\/acme\.atlassian\.net\/secure\/attachment\/9001\/before\.png"/);
 });
+
+test('색상 마크가 파이프라인을 지나며 인라인 color로 살아남는다', () => {
+  const { html } = parse({
+    fields: { description: { type: 'doc', content: [paragraph('설명')] }, attachment: [] },
+    renderedFields: {
+      description:
+        '<p>앞 <span data-text-custom-color="#0747a6" class="fabric-text-color-mark" ' +
+        'style="--custom-palette-color: var(--ds-text-accent-blue, #1558BC);">파랑</span> 뒤</p>',
+    },
+  });
+
+  assert.match(html, /color:#1558BC !important/);
+  assert.match(html, /파랑<\/span>/);
+});

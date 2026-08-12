@@ -21,6 +21,7 @@ Cloud Jira에서 **셀 병합(rowspan/colspan)이 있는 표**를 만들면, Obj
 background.js
   -> renderedFields.description  (표 자리에 <!-- ADF macro (type = 'table') --> )
   -> sanitizeHtml
+  -> restoreColorMarks           (색상 마크 -> 인라인 color/background-color)
   -> resolveMediaInHtml          (기존 미디어/URL 보정)
   -> restoreAdfMacroPlaceholders (ADF -> HTML 로 표 복원)
   -> restoreCascadedCodeFences / restoreSplitCodeBlocks
@@ -39,6 +40,7 @@ background.js
 | `renderAdfNodeToHtml(node, options)` | ADF 노드 1개 → HTML 문자열 |
 | `fillAdfMacroPlaceholders(html, adf, options)` | HTML의 `ADF macro` 주석을 타입이 같은 ADF 노드로 치환 |
 | `applyAdfTableWidths(html, adf)` | HTML의 모든 `<table>`에 ADF 열 폭을 `<colgroup>`으로 주입 |
+| `normalizeColorMarks(html)` | Jira 색상 마크를 인라인 `color` / `background-color`로 번역 ([아래](#텍스트-색상-마크-복원)) |
 
 `options.renderMedia(mediaNode)`는 호스트(background.js)가 주입한다. `matchMediaToAttachment` → `createMediaElementHtml`로 첨부파일을 찾아 `<img>` / `<video>` / `[VIDEO]`를 만들고, 못 찾으면 `[media: 파일명]` placeholder로 떨어진다. 즉 `includeVideo` 옵션이 복원된 표 안 미디어에도 그대로 적용된다.
 
@@ -136,6 +138,42 @@ node --test test/adf-html.test.js test/background-integration.test.js
 - **`renderedFields`가 아예 비어 있는 경우**는 기존 ADF 평문 폴백([background.js](../background.js) `parseIssueDescription` 마지막 분기)을 그대로 쓴다. 이 경로는 표를 평문으로 납작하게 만든다.
 - 표 외 다른 `ADF macro` 타입(`expand`, `panel`, `layoutSection` 등)도 ADF에 노드가 있으면 같은 방식으로 복원되지만, 실제 Jira가 어떤 타입에 자리표시자를 내는지는 인스턴스마다 다를 수 있다.
 
+## 텍스트 색상 마크 복원
+
+표와는 다른 문제지만 원인 구조가 같다 — Jira가 화면에 그리는 정보가 REST 응답의
+HTML만으로는 재현되지 않는다.
+
+Cloud Jira에서 글자에 색을 넣으면 `renderedFields`는 이렇게 온다.
+
+```html
+<span data-text-custom-color="#0747a6" class="fabric-text-color-mark"
+      style="--custom-palette-color: var(--ds-text-accent-blue, #1558BC);">사용자 언어</span>
+```
+
+`style`에는 CSS 변수 선언만 있고 `color`가 없다. 실제 색은 Jira 자체 스타일시트의
+`.fabric-text-color-mark { color: var(--custom-palette-color) }`가 칠하는데, 그
+스타일시트는 Fisheye 페이지에 없다. 그대로 두면 색이 사라진다.
+
+`normalizeColorMarks(html)`가 `sanitizeHtml` 직후에 이 마크를 실제 선언으로 번역한다.
+
+- 대상: `data-text-custom-color` / `data-background-custom-color` 속성, 또는
+  `fabric-text-color-mark` / `fabric-background-color-mark` 클래스를 가진 태그
+- 색 값 우선순위: **`--custom-palette-color`의 `var()` 폴백 → data 속성 값**.
+  폴백(`#1558BC`)이 Jira가 지금 실제로 칠하는 디자인 토큰 값이고, data 속성
+  (`#0747a6`)은 옛 팔레트 값이라 눈에 보이는 색과 다르다.
+- 배경색 마크는 `background-color`로, 텍스트색 마크는 `color`로 간다.
+- 값은 `SAFE_COLOR_RE`(`#hex` / `rgb(a)()`)를 통과한 것만 심는다. 아니면 원본 그대로 둔다.
+- Server/DC가 내는 평범한 `style="color: rgb(...)"`에도 `!important`를 붙인다.
+  값이 `SAFE_COLOR_RE`를 통과할 때만이라 `var(...)` 같은 값은 건드리지 않고, 이미
+  붙어 있으면 두 번 붙이지 않는다.
+
+**`!important`가 필요한 이유:** [content/fisheye-content.css](../content/fisheye-content.css)가
+`.fishhook-objectives-body--adf`의 `span`/`p`/`li`/`td`/`th`/`div`에
+`color: #172b4d !important`를 건다. Fisheye 원본 스타일이 본문을 흐리게 만드는 것을
+되돌리는 방어막이라 걷어낼 수 없고, 스타일시트의 `!important`는 평범한 인라인 선언을
+이긴다. 그래서 색을 **명시한** 요소만 인라인 `!important`로 정확히 예외를 만든다.
+ADF 폴백 경로(`textColor` / `backgroundColor` 마크)도 같은 이유로 `!important`를 붙여 낸다.
+
 ## 수동 검증 체크리스트
 
 - [ ] Cloud Jira: `rowspan`/`colspan` 있는 표 → Objectives·미리보기 모두에 표 표시
@@ -150,3 +188,8 @@ node --test test/adf-html.test.js test/background-integration.test.js
 - [ ] 좁은 열에 넓은 이미지가 든 표 → 이미지가 열 폭에 맞게 줄고 열 비율이 밀리지 않음
 - [ ] 열 너비를 한 번도 조정하지 않은 표 → `colgroup` 없이 내용 기준 자동 배분 (기존 동작)
 - [ ] Server/DC(위키 마크업) 이슈 → 기존과 동일
+- [ ] Cloud Jira: 글자에 색(파랑 등)을 넣은 문단 → Objectives·미리보기 모두 Jira와 같은 색으로 보임
+- [ ] 색 + 굵게를 같이 준 글자 → 색과 굵기가 함께 유지됨
+- [ ] 형광펜(배경색)을 준 글자 → 배경색이 보이고 글자색은 기본색 그대로
+- [ ] 색을 지정하지 않은 본문 → 여전히 진한 기본색 (Fisheye 흐린 글자 회귀 없음)
+- [ ] 병합 표 안(ADF 복원 경로)의 색 글자 → 같은 색으로 보임

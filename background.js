@@ -523,6 +523,14 @@ function restoreSplitCodeBlocks(html, adf) {
   return repair(html, adf);
 }
 
+// Jira Cloud paints text/background color marks from its own stylesheet, which the
+// Fisheye page never loads. Turn those marks into real inline declarations before
+// anything else looks at the HTML.
+function restoreColorMarks(html) {
+  const normalize = self.FishHookAdfHtml?.normalizeColorMarks;
+  return normalize ? normalize(html) : html;
+}
+
 function parseIssueDescription(json, jiraBaseUrl, mediaOptions = {}) {
   const attachments = json?.fields?.attachment;
   const description = json?.fields?.description;
@@ -534,7 +542,13 @@ function parseIssueDescription(json, jiraBaseUrl, mediaOptions = {}) {
       restoreSplitCodeBlocks(
         restoreCascadedCodeFences(
           restoreAdfMacroPlaceholders(
-            resolveMediaInHtml(sanitizeHtml(rendered), adf, attachments, jiraBaseUrl, mediaOptions),
+            resolveMediaInHtml(
+              restoreColorMarks(sanitizeHtml(rendered)),
+              adf,
+              attachments,
+              jiraBaseUrl,
+              mediaOptions
+            ),
             adf,
             attachments,
             jiraBaseUrl,
@@ -556,7 +570,13 @@ function parseIssueDescription(json, jiraBaseUrl, mediaOptions = {}) {
   if (typeof description === 'string' && description.trim()) {
     const looksHtml = /<\/?[a-z][\s\S]*>/i.test(description);
     const html = looksHtml
-      ? resolveMediaInHtml(sanitizeHtml(description), adf, attachments, jiraBaseUrl, mediaOptions)
+      ? resolveMediaInHtml(
+          restoreColorMarks(sanitizeHtml(description)),
+          adf,
+          attachments,
+          jiraBaseUrl,
+          mediaOptions
+        )
       : `<div class="fishhook-jira-content"><p>${escapeHtml(description).replace(/\n/g, '<br>')}</p></div>`;
     return { html, text: stripHtmlToText(html) || description.trim() };
   }

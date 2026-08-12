@@ -9,6 +9,7 @@ const {
   repairSplitCodeBlocks,
   repairCascadedCodeFences,
   applyAdfTableWidths,
+  normalizeColorMarks,
 } = require('../src/adf-html.js');
 
 function paragraph(text) {
@@ -589,4 +590,65 @@ test('cascade repair leaves healthy documents alone', () => {
   assert.strictEqual(repairCascadedCodeFences(healthy, cascadeAdf()), healthy);
   assert.strictEqual(repairCascadedCodeFences(CASCADE_HTML, null), CASCADE_HTML);
   assert.strictEqual(repairCascadedCodeFences('<p>x</p>', cascadeAdf()), '<p>x</p>');
+});
+
+// --- 색상 마크 --------------------------------------------------------------
+
+// Jira Cloud가 실제로 내려주는 텍스트 색상 마크. 색은 style이 아니라 Jira 자체
+// 스타일시트(.fabric-text-color-mark)에 있어서 Fisheye에서는 그냥 사라진다.
+const CLOUD_TEXT_COLOR =
+  '<p>앞 <strong data-renderer-mark="true"><span data-renderer-mark="true" ' +
+  'data-text-custom-color="#0747a6" class="fabric-text-color-mark" ' +
+  'style="--custom-palette-color: var(--ds-text-accent-blue, #1558BC);">사용자 언어</span>' +
+  '</strong> 뒤</p>';
+
+test('color mark: var() 폴백 색을 인라인 color로 심는다', () => {
+  const out = normalizeColorMarks(CLOUD_TEXT_COLOR);
+  assert.match(out, /style="--custom-palette-color: var\(--ds-text-accent-blue, #1558BC\);color:#1558BC !important"/);
+  // 원래 마크업은 그대로 남는다.
+  assert.match(out, /class="fabric-text-color-mark"/);
+  assert.match(out, /사용자 언어<\/span>/);
+});
+
+test('color mark: var()가 없으면 data 속성 색을 쓴다', () => {
+  const html = '<span data-text-custom-color="#0747a6" class="fabric-text-color-mark">글</span>';
+  assert.match(normalizeColorMarks(html), /style="color:#0747a6 !important"/);
+});
+
+test('color mark: 배경색 마크는 background-color로 간다', () => {
+  const html =
+    '<span data-background-custom-color="#FFF0B3" class="fabric-background-color-mark" ' +
+    'style="--custom-palette-color: var(--ds-background-accent-yellow-subtler, #F8E6A0);">글</span>';
+  assert.match(normalizeColorMarks(html), /background-color:#F8E6A0 !important/);
+  assert.doesNotMatch(normalizeColorMarks(html), /[^-]color:#F8E6A0/);
+});
+
+test('color mark: 안전하지 않은 색 값은 심지 않는다', () => {
+  const html =
+    '<span data-text-custom-color="url(javascript:alert(1))" class="fabric-text-color-mark">글</span>';
+  assert.strictEqual(normalizeColorMarks(html), html);
+});
+
+test('color mark: Server/DC의 평범한 color 선언에 !important를 붙인다', () => {
+  const html = '<p style="color: rgb(0, 0, 255)">파랑</p>';
+  assert.match(normalizeColorMarks(html), /style="color:rgb\(0, 0, 255\) !important"/);
+  // 이미 붙어 있으면 두 번 붙이지 않는다.
+  const once = normalizeColorMarks(html);
+  assert.strictEqual(normalizeColorMarks(once), once);
+});
+
+test('color mark: 색과 무관한 마크업은 건드리지 않는다', () => {
+  const html =
+    '<p style="margin: 0">글</p><img src="/x.png" style="width: 10px" /><table><tr><td>셀</td></tr></table>';
+  assert.strictEqual(normalizeColorMarks(html), html);
+  assert.strictEqual(normalizeColorMarks(''), '');
+  assert.strictEqual(normalizeColorMarks(null), '');
+});
+
+test('textColor 마크 렌더링에도 !important가 붙는다', () => {
+  const node = {
+    type: 'paragraph',
+    content: [{ type: 'text', text: '파랑', marks: [{ type: 'textColor', attrs: { color: '#1558BC' } }] }],
+  };
+  assert.match(renderAdfNodeToHtml(node), /<span style="color:#1558BC !important">파랑<\/span>/);
 });

@@ -302,6 +302,25 @@ a.fishhook-version-tag--affects:hover {
   display: table-column-group !important;
 }
 
+/* Tables the author sized in Jira. `min(...)` gives them that exact pixel width but
+   never wider than the container, so a narrow preview panel shrinks the table instead
+   of growing a horizontal scrollbar. Overrides the `width: 100% !important` above:
+   the two selectors tie at (0,3,1), so this block wins only by coming later - do not
+   move it above the base table block. */
+.fishhook-objectives-inject.markup table[data-fishhook-tablewidth],
+.fishhook-objectives-body--adf table[data-fishhook-tablewidth] {
+  width: min(var(--fishhook-table-width, 100%), 100%) !important;
+}
+
+/* Only tables that also got a colgroup. With `auto` the <col> percentages are mere
+   hints and a wide image would blow the ratios out; `fixed` makes them binding, and
+   they divide whichever width won above, so the ratios match Jira at any size. Cells
+   carry `overflow-wrap: anywhere`, so fixed layout cannot overflow. */
+.fishhook-objectives-inject.markup table[data-fishhook-colwidth],
+.fishhook-objectives-body--adf table[data-fishhook-colwidth] {
+  table-layout: fixed !important;
+}
+
 .fishhook-objectives-inject.markup col,
 .fishhook-objectives-body--adf col {
   display: table-column !important;

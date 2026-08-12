@@ -45,9 +45,15 @@
     return SAFE_COLOR_RE.test(value) ? value : '';
   }
 
-  function spanAttr(name, value) {
+  // ADF omits colspan/rowspan when they are 1; treat anything unusable as 1 too.
+  function spanCount(value) {
     const span = Number(value);
-    return Number.isFinite(span) && span > 1 ? ` ${name}="${Math.floor(span)}"` : '';
+    return Number.isFinite(span) && span > 1 ? Math.floor(span) : 1;
+  }
+
+  function spanAttr(name, value) {
+    const span = spanCount(value);
+    return span > 1 ? ` ${name}="${span}"` : '';
   }
 
   function children(node, options) {
@@ -129,12 +135,96 @@
     const attrs = node.attrs || {};
     const background = safeColor(attrs.background);
     const style = background ? ` style="background-color:${escapeAttr(background)}"` : '';
-    // `colwidth` is deliberately dropped: the preview panel is far narrower than the
-    // Jira editor, and honouring the pixel widths crushes the first column.
+    // Per-cell `colwidth` is not emitted here; `renderTable` turns it into a
+    // proportional <colgroup> so column ratios survive the narrow preview panel.
     return (
       `<${tag}${spanAttr('colspan', attrs.colspan)}${spanAttr('rowspan', attrs.rowspan)}${style}>` +
       `${children(node, options)}</${tag}>`
     );
+  }
+
+  // Collects one pixel width per table column from the cells' `colwidth` arrays.
+  // A spanning cell carries one entry per column it covers, so we walk columns in
+  // document order and keep the first width seen for each. Returns null unless every
+  // column ends up with a usable width — a partial map would misalign the table.
+  function tableColumnWidths(node) {
+    const widths = [];
+    let columnCount = 0;
+
+    (Array.isArray(node?.content) ? node.content : [])
+      .filter((row) => row?.type === 'tableRow')
+      .forEach((row) => {
+        let column = 0;
+        (Array.isArray(row.content) ? row.content : []).forEach((cellNode) => {
+          const span = spanCount(cellNode?.attrs?.colspan);
+          const declared = cellNode?.attrs?.colwidth;
+          for (let i = 0; i < span; i += 1) {
+            if (widths[column + i] === undefined && Array.isArray(declared)) {
+              const width = Number(declared[i]);
+              if (Number.isFinite(width) && width > 0) widths[column + i] = width;
+            }
+          }
+          column += span;
+        });
+        columnCount = Math.max(columnCount, column);
+      });
+
+    if (!columnCount) return null;
+    for (let i = 0; i < columnCount; i += 1) {
+      if (widths[i] === undefined) return null;
+    }
+    return widths.slice(0, columnCount);
+  }
+
+  // Pixel widths are relative to the Jira editor (~1300px), so they would crush the
+  // first column of a 480px preview panel. Normalising to percentages keeps the
+  // author's column ratios while the table itself stays at 100% of the panel —
+  // the same thing Jira's own renderer does when it scales a table down.
+  function renderColgroup(widths) {
+    const total = widths.reduce((sum, width) => sum + width, 0);
+    if (!total) return '';
+    const cols = widths
+      .map((width) => `<col style="width:${((width / total) * 100).toFixed(4)}%">`)
+      .join('');
+    return `<colgroup>${cols}</colgroup>`;
+  }
+
+  // The table's own pixel width, published as a custom property the stylesheet feeds
+  // to `width: min(var(--fishhook-table-width), 100%)`. Wide viewports get the exact
+  // size the author picked in Jira; narrower ones shrink to fit instead of scrolling.
+  //
+  // `attrs.width` is what Jira stores when the table itself was resized - that happens
+  // independently of dragging column dividers, so a table can have a width with no
+  // `colwidth` anywhere. Fall back to the column sum for the reverse case.
+  function tableWidthDecl(node, widths) {
+    const declared = Number(node?.attrs?.width);
+    const total =
+      Number.isFinite(declared) && declared > 0
+        ? declared
+        : (widths || []).reduce((sum, width) => sum + width, 0);
+    return total > 0 ? `--fishhook-table-width:${Math.round(total)}px` : '';
+  }
+
+  // `data-fishhook-tablewidth` drives the width clamp; `data-fishhook-colwidth` also
+  // switches on `table-layout: fixed`, which only makes sense once a colgroup exists.
+  function widthAttrs(widthDecl, colgroup) {
+    return (
+      (widthDecl ? ' data-fishhook-tablewidth="true"' : '') +
+      (colgroup ? ' data-fishhook-colwidth="true"' : '')
+    );
+  }
+
+  // Appends a declaration to an opening tag's inline style, creating the attribute
+  // when the tag has none.
+  function withInlineStyle(openTag, declaration) {
+    if (!declaration) return openTag;
+    const existing = /\sstyle\s*=\s*(["'])([\s\S]*?)\1/i.exec(openTag);
+    if (existing) {
+      const merged = existing[2].replace(/;\s*$/, '');
+      const value = merged ? `${merged};${declaration}` : declaration;
+      return openTag.replace(existing[0], ` style=${existing[1]}${value}${existing[1]}`);
+    }
+    return `${openTag.slice(0, -1)} style="${declaration}">`;
   }
 
   function renderTable(node, options) {
@@ -144,7 +234,59 @@
       .join('');
     const layout = String(node.attrs?.layout || '');
     const layoutAttr = /^[a-z-]+$/.test(layout) ? ` data-layout="${layout}"` : '';
-    return `<table class="wiki-table" data-fishhook-adf-table="true"${layoutAttr}><tbody>${rows}</tbody></table>`;
+    const widths = tableColumnWidths(node);
+    const colgroup = widths ? renderColgroup(widths) : '';
+    const widthDecl = tableWidthDecl(node, widths);
+    const openTag = withInlineStyle(
+      `<table class="wiki-table" data-fishhook-adf-table="true"${widthAttrs(widthDecl, colgroup)}${layoutAttr}>`,
+      widthDecl
+    );
+    return `${openTag}${colgroup}<tbody>${rows}</tbody></table>`;
+  }
+
+  const TABLE_OPEN_RE = /<table\b[^>]*>/gi;
+
+  function collectAdfTables(node, found = []) {
+    if (!node || typeof node !== 'object') return found;
+    if (node.type === 'table') found.push(node);
+    if (Array.isArray(node.content)) node.content.forEach((child) => collectAdfTables(child, found));
+    return found;
+  }
+
+  // Jira Cloud only emits an `ADF macro` placeholder for tables its HTML converter
+  // gives up on (merged cells). Tables it *can* convert come back as real markup with
+  // `colwidth` stripped, so the author's column ratios are lost before we ever see them.
+  // The widths survive in the raw ADF, so splice a proportional <colgroup> back in.
+  //
+  // Rendered tables pair with ADF `table` nodes 1:1 in document order. If the counts
+  // disagree we leave everything alone - a shifted pairing would size the wrong columns,
+  // which is worse than the even split we already fall back to.
+  function applyAdfTableWidths(html, adf) {
+    const source = String(html || '');
+    if (!adf || !source) return source;
+
+    const openings = source.match(TABLE_OPEN_RE);
+    if (!openings) return source;
+    const tables = collectAdfTables(adf);
+    if (tables.length !== openings.length) return source;
+
+    let index = -1;
+    return source.replace(TABLE_OPEN_RE, (openTag, offset) => {
+      index += 1;
+      // Tables rebuilt from ADF were already sized when they were rendered.
+      if (/data-fishhook-(?:col|table)width/i.test(openTag)) return openTag;
+
+      const node = tables[index];
+      const widths = tableColumnWidths(node);
+      // A colgroup the host already supplied wins; we only fill the gap.
+      const hasOwnColgroup = /^\s*<colgroup/i.test(source.slice(offset + openTag.length));
+      const colgroup = widths && !hasOwnColgroup ? renderColgroup(widths) : '';
+      const widthDecl = tableWidthDecl(node, widths);
+      if (!colgroup && !widthDecl) return openTag;
+
+      const marked = `${openTag.slice(0, -1)}${widthAttrs(widthDecl, colgroup)}>`;
+      return `${withInlineStyle(marked, widthDecl)}${colgroup}`;
+    });
   }
 
   function codeBlockText(node) {
@@ -435,6 +577,7 @@
     fillAdfMacroPlaceholders,
     repairSplitCodeBlocks,
     repairCascadedCodeFences,
+    applyAdfTableWidths,
     escapeHtml,
   };
 });

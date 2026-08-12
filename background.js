@@ -496,6 +496,15 @@ function restoreAdfMacroPlaceholders(html, adf, attachments, jiraBaseUrl, mediaO
   return fill(html, adf, adfRenderOptions(attachments, jiraBaseUrl, mediaOptions));
 }
 
+// Jira's HTML converter strips `colwidth` from every table it manages to convert, so
+// the preview loses the author's column ratios. Put them back from the raw ADF. Runs
+// last so tables rebuilt by the repairs above are already in place and get counted.
+function restoreAdfTableWidths(html, adf) {
+  const apply = self.FishHookAdfHtml?.applyAdfTableWidths;
+  if (!apply || !adf) return html;
+  return apply(html, adf);
+}
+
 // A code block ending in `\` swallows its closing `{noformat}`, and every fence
 // after it pairs off by one - prose inside code panels, code inside paragraphs,
 // tables reduced to raw `||...||`. Re-render the document tail from the ADF.
@@ -521,19 +530,22 @@ function parseIssueDescription(json, jiraBaseUrl, mediaOptions = {}) {
 
   const rendered = json?.renderedFields?.description;
   if (rendered && String(rendered).trim()) {
-    const html = restoreSplitCodeBlocks(
-      restoreCascadedCodeFences(
-        restoreAdfMacroPlaceholders(
-          resolveMediaInHtml(sanitizeHtml(rendered), adf, attachments, jiraBaseUrl, mediaOptions),
+    const html = restoreAdfTableWidths(
+      restoreSplitCodeBlocks(
+        restoreCascadedCodeFences(
+          restoreAdfMacroPlaceholders(
+            resolveMediaInHtml(sanitizeHtml(rendered), adf, attachments, jiraBaseUrl, mediaOptions),
+            adf,
+            attachments,
+            jiraBaseUrl,
+            mediaOptions
+          ),
           adf,
           attachments,
           jiraBaseUrl,
           mediaOptions
         ),
-        adf,
-        attachments,
-        jiraBaseUrl,
-        mediaOptions
+        adf
       ),
       adf
     );

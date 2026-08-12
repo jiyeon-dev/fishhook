@@ -8,6 +8,7 @@ const {
   fillAdfMacroPlaceholders,
   repairSplitCodeBlocks,
   repairCascadedCodeFences,
+  applyAdfTableWidths,
 } = require('../src/adf-html.js');
 
 function paragraph(text) {
@@ -69,9 +70,227 @@ test('does not emit colspan/rowspan when they are 1', () => {
   assert.doesNotMatch(html, /(col|row)span="1"/);
 });
 
-test('does not emit colgroup widths that squeeze columns in a narrow preview', () => {
+test('turns colwidth into proportional colgroup percentages', () => {
   const html = renderAdfNodeToHtml(MERGED_TABLE);
+
+  // 172 / 560 / 583 out of 1315 total.
+  assert.match(
+    html,
+    /<colgroup><col style="width:13\.0798%"><col style="width:42\.5856%"><col style="width:44\.3346%"><\/colgroup><tbody>/
+  );
+  assert.match(html, /data-fishhook-colwidth="true"/);
+  // No attrs.width, so the column widths themselves give the natural table width.
+  assert.match(html, /style="--fishhook-table-width:1315px"/);
+});
+
+// Resizing the whole table in Jira without touching a single column divider leaves
+// `attrs.width` set and every `colwidth` empty.
+const WIDTH_ONLY_TABLE = {
+  type: 'table',
+  attrs: { layout: 'align-start', width: 609 },
+  content: [
+    {
+      type: 'tableRow',
+      content: [
+        cell('tableHeader', {}, '화면'),
+        cell('tableHeader', {}, '권한 키'),
+        cell('tableHeader', {}, '동작'),
+      ],
+    },
+  ],
+};
+
+test('keeps the table width even when no column has its own width', () => {
+  const html = renderAdfNodeToHtml(WIDTH_ONLY_TABLE);
+
+  assert.match(html, /data-fishhook-tablewidth="true"/);
+  assert.match(html, /style="--fishhook-table-width:609px"/);
+  // Without per-column widths the columns stay content-sized, as in Jira.
+  assert.doesNotMatch(html, /<colgroup|data-fishhook-colwidth/);
+});
+
+test('grafts a bare table width onto a rendered table', () => {
+  const rendered = '<table class="confluenceTable wiki-table"><tbody></tbody></table>';
+  const html = applyAdfTableWidths(rendered, { type: 'doc', content: [WIDTH_ONLY_TABLE] });
+
+  assert.match(
+    html,
+    /<table class="confluenceTable wiki-table" data-fishhook-tablewidth="true" style="--fishhook-table-width:609px">/
+  );
+  assert.doesNotMatch(html, /<colgroup|data-fishhook-colwidth/);
+});
+
+test('prefers the ADF table width over the sum of the columns', () => {
+  const html = renderAdfNodeToHtml({
+    ...MERGED_TABLE,
+    attrs: { ...MERGED_TABLE.attrs, width: 1300 },
+  });
+
+  assert.match(html, /style="--fishhook-table-width:1300px"/);
+});
+
+test('spreads a spanning cell colwidth across the columns it covers', () => {
+  const html = renderAdfNodeToHtml({
+    type: 'table',
+    content: [
+      {
+        type: 'tableRow',
+        content: [cell('tableHeader', { colspan: 2, colwidth: [100, 300] }, '머리')],
+      },
+      {
+        type: 'tableRow',
+        content: [cell('tableCell', {}, '왼쪽'), cell('tableCell', {}, '오른쪽')],
+      },
+    ],
+  });
+
+  assert.match(
+    html,
+    /<colgroup><col style="width:25\.0000%"><col style="width:75\.0000%"><\/colgroup>/
+  );
+});
+
+test('omits colgroup when any column has no width', () => {
+  const html = renderAdfNodeToHtml({
+    type: 'table',
+    content: [
+      {
+        type: 'tableRow',
+        content: [cell('tableCell', { colwidth: [172] }, 'A'), cell('tableCell', {}, 'B')],
+      },
+    ],
+  });
+
   assert.doesNotMatch(html, /<colgroup|<col\b/);
+  assert.doesNotMatch(html, /data-fishhook-colwidth/);
+});
+
+test('omits colgroup when no cell carries colwidth', () => {
+  const html = renderAdfNodeToHtml({
+    type: 'table',
+    content: [
+      {
+        type: 'tableRow',
+        content: [cell('tableCell', {}, 'A'), cell('tableCell', {}, 'B')],
+      },
+    ],
+  });
+
+  assert.doesNotMatch(html, /<colgroup|<col\b/);
+});
+
+test('omits colgroup when a colwidth value is zero or not a number', () => {
+  const zero = renderAdfNodeToHtml({
+    type: 'table',
+    content: [
+      {
+        type: 'tableRow',
+        content: [cell('tableCell', { colwidth: [0] }, 'A'), cell('tableCell', { colwidth: [200] }, 'B')],
+      },
+    ],
+  });
+  const bogus = renderAdfNodeToHtml({
+    type: 'table',
+    content: [
+      {
+        type: 'tableRow',
+        content: [
+          cell('tableCell', { colwidth: ['auto'] }, 'A'),
+          cell('tableCell', { colwidth: [200] }, 'B'),
+        ],
+      },
+    ],
+  });
+
+  assert.doesNotMatch(zero, /<colgroup|<col\b/);
+  assert.doesNotMatch(bogus, /<colgroup|<col\b/);
+});
+
+// Jira Cloud's renderedFields converter drops colwidth entirely for tables it *can*
+// convert, so a plain (unmerged) table arrives with no colgroup at all. The widths
+// still live in the raw ADF, so we graft them back on.
+const PLAIN_TABLE_ADF = {
+  type: 'table',
+  attrs: { layout: 'align-start', width: 650 },
+  content: [
+    {
+      type: 'tableRow',
+      content: [
+        cell('tableHeader', { colwidth: [113] }, '페이지명'),
+        cell('tableHeader', { colwidth: [293] }, '이미지'),
+        cell('tableHeader', { colwidth: [243] }, '설명'),
+      ],
+    },
+  ],
+};
+
+const PLAIN_TABLE_DOC = { type: 'doc', version: 1, content: [PLAIN_TABLE_ADF] };
+
+const RENDERED_PLAIN_TABLE =
+  '<div class="table-wrap">\n<table class="confluenceTable wiki-table"><tbody>\n' +
+  '<tr>\n<th class="confluenceTh"><b>페이지명</b></th>\n' +
+  '<th class="confluenceTh"><b>이미지</b></th>\n' +
+  '<th class="confluenceTh"><b>설명</b></th>\n</tr>\n</tbody></table>\n</div>';
+
+test('grafts ADF column widths onto a rendered table that lost them', () => {
+  const html = applyAdfTableWidths(RENDERED_PLAIN_TABLE, PLAIN_TABLE_DOC);
+
+  assert.match(
+    html,
+    /<table class="confluenceTable wiki-table" data-fishhook-tablewidth="true" data-fishhook-colwidth="true" style="--fishhook-table-width:650px">/
+  );
+  assert.match(
+    html,
+    /<colgroup><col style="width:17\.4114%"><col style="width:45\.1464%"><col style="width:37\.4422%"><\/colgroup><tbody>/
+  );
+  // Everything outside the opening tag is untouched.
+  assert.match(html, /<th class="confluenceTh"><b>페이지명<\/b><\/th>/);
+});
+
+test('merges the table width into an existing style attribute', () => {
+  const rendered = '<table class="confluenceTable" style="border: 0"><tbody></tbody></table>';
+  const html = applyAdfTableWidths(rendered, PLAIN_TABLE_DOC);
+
+  assert.match(html, /style="border: 0;--fishhook-table-width:650px"/);
+  assert.strictEqual((html.match(/style=/g) || []).length, 4); // table + 3 cols
+});
+
+test('leaves a table that already carries a colgroup alone', () => {
+  const already =
+    '<table class="wiki-table" data-fishhook-adf-table="true" data-fishhook-colwidth="true">' +
+    '<colgroup><col style="width:50.0000%"><col style="width:50.0000%"></colgroup><tbody></tbody></table>';
+
+  assert.strictEqual(applyAdfTableWidths(already, PLAIN_TABLE_DOC), already);
+});
+
+test('does nothing when rendered tables and ADF tables do not line up', () => {
+  const twoTables = `${RENDERED_PLAIN_TABLE}${RENDERED_PLAIN_TABLE}`;
+
+  assert.strictEqual(applyAdfTableWidths(twoTables, PLAIN_TABLE_DOC), twoTables);
+});
+
+test('does nothing when the ADF table has no usable widths', () => {
+  const doc = {
+    type: 'doc',
+    content: [
+      {
+        type: 'table',
+        content: [
+          {
+            type: 'tableRow',
+            content: [cell('tableHeader', {}, 'A'), cell('tableHeader', {}, 'B')],
+          },
+        ],
+      },
+    ],
+  };
+
+  assert.strictEqual(applyAdfTableWidths(RENDERED_PLAIN_TABLE, doc), RENDERED_PLAIN_TABLE);
+});
+
+test('applyAdfTableWidths is a no-op without ADF or tables', () => {
+  assert.strictEqual(applyAdfTableWidths(RENDERED_PLAIN_TABLE, null), RENDERED_PLAIN_TABLE);
+  assert.strictEqual(applyAdfTableWidths('<p>본문</p>', PLAIN_TABLE_DOC), '<p>본문</p>');
 });
 
 test('renders inline marks and escapes text', () => {

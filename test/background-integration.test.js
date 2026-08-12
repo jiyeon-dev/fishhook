@@ -110,6 +110,56 @@ test('leaves normal rendered tables untouched', () => {
   assert.strictEqual(result.html, rendered);
 });
 
+// Jira converts unmerged tables to HTML itself and throws colwidth away on the way.
+test('restores column widths that Jira dropped from a converted table', () => {
+  const widthCell = (type, width, text) => ({
+    type,
+    attrs: { colwidth: [width] },
+    content: [paragraph(text)],
+  });
+  const json = {
+    fields: {
+      summary: 'JIRA-2',
+      description: {
+        type: 'doc',
+        version: 1,
+        content: [
+          {
+            type: 'table',
+            attrs: { layout: 'align-start', width: 650 },
+            content: [
+              {
+                type: 'tableRow',
+                content: [
+                  widthCell('tableHeader', 113, '페이지명'),
+                  widthCell('tableHeader', 293, '이미지'),
+                  widthCell('tableHeader', 243, '설명'),
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+    renderedFields: {
+      description:
+        '<div class="table-wrap">\n<table class="confluenceTable wiki-table"><tbody>\n' +
+        '<tr>\n<th class="confluenceTh"><b>페이지명</b></th>\n' +
+        '<th class="confluenceTh"><b>이미지</b></th>\n' +
+        '<th class="confluenceTh"><b>설명</b></th>\n</tr>\n</tbody></table>\n</div>',
+    },
+  };
+
+  const result = parse(json);
+
+  assert.match(result.html, /data-fishhook-colwidth="true"/);
+  assert.match(
+    result.html,
+    /<colgroup><col style="width:17\.4114%"><col style="width:45\.1464%"><col style="width:37\.4422%"><\/colgroup>/
+  );
+  assert.match(result.html, /<th class="confluenceTh"><b>페이지명<\/b><\/th>/);
+});
+
 test('resolves media whose attachment filename carries the media UUID suffix', () => {
   const mediaId = 'f059930b-7143-4a16-9043-2866adb7bb60';
   const json = issue("<!-- ADF macro (type = 'table') -->");

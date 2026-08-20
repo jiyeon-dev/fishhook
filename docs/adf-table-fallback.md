@@ -174,6 +174,23 @@ Cloud Jira에서 글자에 색을 넣으면 `renderedFields`는 이렇게 온다
 이긴다. 그래서 색을 **명시한** 요소만 인라인 `!important`로 정확히 예외를 만든다.
 ADF 폴백 경로(`textColor` / `backgroundColor` 마크)도 같은 이유로 `!important`를 붙여 낸다.
 
+## heading 위 여백
+
+Cloud Jira 본문의 heading은 위쪽 여백을 `margin-top: var(--ds-space-250, 1.25rem)`
+(= 20px)으로 준다. 확장은 호스트(Fisheye) 스타일이 heading을 전부 같은 굵은 글씨로
+눌러버리는 것을 되돌리려고 `margin`을 `!important`로 덮어쓰는데, 그 값이
+`0 0 0.5em`이라 **위 여백이 사라져** heading이 앞 문단에 붙어 보였다.
+
+[content/fisheye-content.css](../content/fisheye-content.css)의 h1~h6 공통 블록을
+`margin: 1.25rem 0 0.5em !important`로 맞췄다.
+
+- 레벨별 값은 Jira 쪽에서 확인되지 않아 **h1~h6 일괄 동일**하게 준다.
+- 본문 **첫 요소**가 heading이면 위 여백을 0으로 되돌린다. 패널 상단 패딩과 겹쳐
+  본문이 떠 보이기 때문이다.
+- Server/DC 위키 마크업 경로는 heading 앞에 빈 문단(`p.jira-wiki-heading-spacer`,
+  높이 1em)을 이미 넣는다. 그 뒤에 오는 heading은 위 여백을 0으로 되돌려
+  간격이 두 배로 벌어지지 않게 한다.
+
 ## 수동 검증 체크리스트
 
 - [ ] Cloud Jira: `rowspan`/`colspan` 있는 표 → Objectives·미리보기 모두에 표 표시
@@ -193,3 +210,7 @@ ADF 폴백 경로(`textColor` / `backgroundColor` 마크)도 같은 이유로 `!
 - [ ] 형광펜(배경색)을 준 글자 → 배경색이 보이고 글자색은 기본색 그대로
 - [ ] 색을 지정하지 않은 본문 → 여전히 진한 기본색 (Fisheye 흐린 글자 회귀 없음)
 - [ ] 병합 표 안(ADF 복원 경로)의 색 글자 → 같은 색으로 보임
+- [ ] Cloud Jira: 문단 뒤에 h4 heading → heading 위에 20px 여백이 생기고 Jira 본문과 같은 간격으로 보임
+- [ ] h1~h6를 연달아 쓴 본문 → 레벨에 상관없이 위 여백이 같음
+- [ ] 본문 **첫 줄이 heading**인 이슈 → heading 위가 뜨지 않음 (패널 상단 패딩만)
+- [ ] Server/DC(위키 마크업) 이슈의 heading → 간격이 두 배로 벌어지지 않음 (회귀 없음)

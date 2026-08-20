@@ -425,10 +425,25 @@ a.fishhook-version-tag--affects:hover {
 .fishhook-objectives-body--adf h5,
 .fishhook-objectives-body--adf h6 {
   display: block !important;
-  margin: 0 0 0.5em !important;
+  /* Cloud Jira는 heading 위 여백을 --ds-space-250(1.25rem = 20px)으로 준다.
+     레벨별 값은 확인되지 않아 h1~h6 일괄 동일하게 맞춘다. */
+  margin: 1.25rem 0 0.5em !important;
   font-weight: 700 !important;
   line-height: 1.35 !important;
   color: #172b4d !important;
+}
+
+/* 본문 첫 요소가 heading이면 위 여백이 패널 상단 패딩과 겹쳐 뜬다. */
+.fishhook-objectives-inject.markup > :is(h1, h2, h3, h4, h5, h6):first-child,
+.fishhook-objectives-body--adf > :is(h1, h2, h3, h4, h5, h6):first-child {
+  margin-top: 0 !important;
+}
+
+/* Server/DC 위키 마크업 경로는 heading 앞에 빈 문단(spacer)을 이미 넣는다.
+   여기에 위 여백까지 더하면 두 배로 벌어진다. */
+.fishhook-objectives-inject.markup p.jira-wiki-heading-spacer + :is(h1, h2, h3, h4, h5, h6),
+.fishhook-objectives-body--adf p.jira-wiki-heading-spacer + :is(h1, h2, h3, h4, h5, h6) {
+  margin-top: 0 !important;
 }
 
 .fishhook-objectives-inject.markup h1,

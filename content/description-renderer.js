@@ -232,8 +232,10 @@
     doc.querySelectorAll('[data-node-type="mediaSingle"], [data-testid="media-single"], .media-single, figure').forEach(
       (wrap) => {
         wrap.style.maxWidth = '100%';
-        wrap.style.width = '100%';
         wrap.style.boxSizing = 'border-box';
+        // Wrapped media floats beside the text (see desc-panel.css); stretching it to
+        // the full panel width would push that text below the image instead.
+        if (!wrap.hasAttribute('data-fishhook-media-layout')) wrap.style.width = '100%';
       }
     );
     doc.querySelectorAll('video').forEach((video) => {

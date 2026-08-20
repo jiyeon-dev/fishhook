@@ -298,6 +298,19 @@ monospace `font-family`·border·border-radius는 사용하지 않고 본문 기
 - **Jira Cloud Media Services UUID**: 공개 Media API가 없어 ADF `media.id`(UUID)와 첨부파일 ID가 직접 매칭되지 않을 수 있다. 이 경우 `alt`(파일명) 또는 rendered error span UUID로 매칭을 시도한다.
 - **YouTube 등 외부 embed**: `<iframe>`은 보안상 제거한다.
 
+## 미디어 wrap 레이아웃
+
+ADF `mediaSingle`의 `layout` 속성이 `wrap-left`/`wrap-right`이면 Jira는 뒤따르는 본문을
+이미지 옆으로 흘려보낸다. 이 정보를 버리면 이미지가 다음 문단·heading **위**에 통째로
+쌓여 Cloud와 위치가 달라진다.
+
+- `src/adf-html.js`: wrap 레이아웃만 `data-fishhook-media-layout="wrap-left|wrap-right"`로
+  남긴다. `align-start`, `center` 등 본문을 흘리지 않는 레이아웃은 붙이지 않는다.
+- `content/fisheye-content.css`, `content/desc-panel.css`: 해당 요소를 `float`시키고
+  `max-width: 45%`로 제한한다. 본문 블록에는 `::after { clear: both }`로 float를 닫는다.
+- `content/description-renderer.js`: `mediaSingle`에 강제하던 `width: 100%`는 wrap
+  레이아웃일 때 건너뛴다. 폭을 꽉 채우면 float해도 본문이 아래로 밀린다.
+
 ## 관련 파일
 
 ```text
@@ -308,8 +321,8 @@ content/media-loader.js        # 동영상 hydration (background 경유)
 content/image-lightbox.js      # 이미지 클릭 전체화면
 content/desc-panel.js          # includeVideo: false, videoMode: placeholder
 content/fisheye-content.js     # Objectives: includeVideo 기본 true, hydration + lightbox
-content/fisheye-content.css    # 미디어/placeholder/라이트박스/인라인 코드 스타일
-content/desc-panel.css         # 미리보기 패널 이미지 max-width / max-height 420px
+content/fisheye-content.css    # 미디어/placeholder/라이트박스/인라인 코드/wrap 레이아웃 스타일
+content/desc-panel.css         # 미리보기 패널 이미지 max-width / max-height 420px, wrap 레이아웃
 ```
 
 ## 수동 검증 체크리스트
@@ -324,3 +337,5 @@ content/desc-panel.css         # 미리보기 패널 이미지 max-width / max-h
 - [ ] Description 본문만 동영상인 이슈 → Objectives/미리보기 모두 빈 화면이 아님
 - [ ] Objectives / 미리보기 패널: `` `inline` ``, `{{inline}}`, `<tt>` → Cloud Jira 스타일 인라인 코드 표시
 - [ ] `[snmp0-]` 등 대괄호 일반 텍스트 → `[media: ...]` placeholder 없이 원문 표시
+- [ ] Cloud에서 본문 오른쪽에 붙어 있는 이미지(`wrap-right`) → Objectives / 미리보기 패널에서도
+      heading 위가 아니라 본문 오른쪽에 표시, 본문이 이미지 옆으로 흐름

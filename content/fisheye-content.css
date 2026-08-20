@@ -234,6 +234,31 @@ a.fishhook-version-tag--affects:hover {
   height: auto;
 }
 
+/* Jira wraps `wrap-left`/`wrap-right` media beside the text that follows it, so float
+   the media instead of stacking it above the next heading. */
+.fishhook-objectives-body--adf [data-fishhook-media-layout='wrap-left'],
+.fishhook-objectives-body--adf [data-fishhook-media-layout='wrap-right'] {
+  width: auto;
+  max-width: 45%;
+}
+
+.fishhook-objectives-body--adf [data-fishhook-media-layout='wrap-left'] {
+  float: left;
+  margin: 0 12px 8px 0;
+}
+
+.fishhook-objectives-body--adf [data-fishhook-media-layout='wrap-right'] {
+  float: right;
+  margin: 0 0 8px 12px;
+}
+
+/* Keep a trailing float from spilling out of the description block. */
+.fishhook-objectives-body--adf::after {
+  content: '';
+  display: block;
+  clear: both;
+}
+
 .fishhook-objectives-inject.markup table,
 .fishhook-objectives-inject.markup table.wiki-table,
 .fishhook-objectives-body--adf table,

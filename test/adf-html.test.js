@@ -376,6 +376,33 @@ test('delegates media nodes to the host renderer', () => {
   assert.match(html, /<img src="https:\/\/jira\/x\.png">/);
 });
 
+test('keeps the wrap layout on media so it can float beside the text', () => {
+  const html = renderAdfNodeToHtml(
+    {
+      type: 'mediaSingle',
+      attrs: { layout: 'wrap-right', width: 324 },
+      content: [{ type: 'media', attrs: { id: 'abc', alt: 'shot.png', type: 'file' } }],
+    },
+    { renderMedia: () => '<img src="https://jira/x.png">' }
+  );
+
+  assert.match(html, /data-fishhook-media-layout="wrap-right"/);
+});
+
+test('drops layouts that do not wrap text', () => {
+  const html = renderAdfNodeToHtml(
+    {
+      type: 'mediaSingle',
+      attrs: { layout: 'align-start' },
+      content: [{ type: 'media', attrs: { id: 'abc', alt: 'shot.png', type: 'file' } }],
+    },
+    { renderMedia: () => '<img src="https://jira/x.png">' }
+  );
+
+  assert.match(html, /<div data-node-type="mediaSingle">/);
+  assert.doesNotMatch(html, /data-fishhook-media-layout/);
+});
+
 test('falls back to a placeholder when media cannot be resolved', () => {
   const html = renderAdfNodeToHtml(
     { type: 'media', attrs: { id: 'zzz', alt: '없는 파일.png' } },

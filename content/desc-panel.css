@@ -217,6 +217,30 @@ body.fishhook-desc-panel--resizing {
   box-sizing: border-box;
 }
 
+/* Mirrors the Jira `wrap-left`/`wrap-right` media layout: float the media so the
+   following text sits beside it rather than under it. */
+.fishhook-desc-panel__body [data-fishhook-media-layout='wrap-left'],
+.fishhook-desc-panel__body [data-fishhook-media-layout='wrap-right'] {
+  width: auto;
+  max-width: 45%;
+}
+
+.fishhook-desc-panel__body [data-fishhook-media-layout='wrap-left'] {
+  float: left;
+  margin: 0 12px 8px 0;
+}
+
+.fishhook-desc-panel__body [data-fishhook-media-layout='wrap-right'] {
+  float: right;
+  margin: 0 0 8px 12px;
+}
+
+.fishhook-desc-panel__body .fishhook-objectives-body--adf::after {
+  content: '';
+  display: block;
+  clear: both;
+}
+
 .fishhook-desc-panel__body .fishhook-jira-image,
 .fishhook-desc-panel__body img.fishhook-jira-media {
   display: block;

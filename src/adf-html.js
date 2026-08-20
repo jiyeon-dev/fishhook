@@ -21,6 +21,8 @@
 
   const SAFE_COLOR_RE = /^(?:#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i;
   const SAFE_LANG_RE = /[^a-z0-9+#.-]/g;
+  // ADF `mediaSingle` layouts that make Jira wrap text around the media.
+  const WRAP_LAYOUTS = new Set(['wrap-left', 'wrap-right']);
 
   function escapeHtml(text) {
     return String(text ?? '')
@@ -356,8 +358,14 @@
       case 'media':
         return renderMediaNode(node, options);
       case 'mediaSingle':
-      case 'mediaGroup':
-        return `<div data-node-type="mediaSingle">${children(node, options)}</div>`;
+      case 'mediaGroup': {
+        // Jira floats `wrap-left`/`wrap-right` media beside the following text, so the
+        // layout has to survive into the preview — dropping it pushed the image above
+        // the heading it was meant to sit next to.
+        const layout = WRAP_LAYOUTS.has(node.attrs?.layout) ? node.attrs.layout : '';
+        const layoutAttr = layout ? ` data-fishhook-media-layout="${layout}"` : '';
+        return `<div data-node-type="mediaSingle"${layoutAttr}>${children(node, options)}</div>`;
+      }
       case 'mediaInline':
         return renderMediaNode(node, options);
       case 'expand':

@@ -10,6 +10,7 @@ const {
   repairCascadedCodeFences,
   applyAdfTableWidths,
   normalizeColorMarks,
+  hasWikiMarkupDamage,
 } = require('../src/adf-html.js');
 
 function paragraph(text) {
@@ -312,7 +313,7 @@ test('renders inline marks and escapes text', () => {
 
   assert.strictEqual(
     html,
-    '<p><strong>a&lt;b&gt;</strong> &amp; <code>c</code><br>' +
+    '<p><strong>a&lt;b&gt;</strong> &amp; <code class="wiki-inline-code">c</code><br>' +
       '<a href="https://example.com/?a=1&amp;b=2" target="_blank" rel="noopener noreferrer">link</a></p>'
   );
 });
@@ -651,4 +652,79 @@ test('textColor 마크 렌더링에도 !important가 붙는다', () => {
     content: [{ type: 'text', text: '파랑', marks: [{ type: 'textColor', attrs: { color: '#1558BC' } }] }],
   };
   assert.match(renderAdfNodeToHtml(node), /<span style="color:#1558BC !important">파랑<\/span>/);
+});
+
+// GS-13104: `{index}` inside inline code closes its own `{{...}}` fence, and every
+// heading/rule/list/table after it comes back as literal wiki markup.
+const MANGLED_ADF = {
+  type: 'doc',
+  content: [
+    {
+      type: 'paragraph',
+      content: [
+        { type: 'text', text: 'POST /mc/api/events/analysis/{index}', marks: [{ type: 'code' }] },
+        { type: 'text', text: ' (bulk)' },
+      ],
+    },
+    { type: 'heading', attrs: { level: 4 }, content: [{ type: 'text', text: 'How do users use it?' }] },
+    { type: 'rule' },
+    {
+      type: 'paragraph',
+      content: [
+        { type: 'text', text: '탐지 커버리지가 확장되는지 증명', marks: [{ type: 'strong' }] },
+        { type: 'text', text: '하기 위한 기반' },
+      ],
+    },
+    {
+      type: 'table',
+      content: [
+        {
+          type: 'tableRow',
+          content: [cell('tableHeader', {}, 'HTTP'), cell('tableHeader', {}, '의미')],
+        },
+        { type: 'tableRow', content: [cell('tableCell', {}, '200'), cell('tableCell', {}, '전건 성공')] },
+      ],
+    },
+  ],
+};
+
+const MANGLED_HTML =
+  '<ul><li><code class="wiki-inline-code">POST /mc/api/events/analysis/\n{index</code>} (bulk)<br>\n' +
+  'h4. How do users use it?<br>\n' +
+  '----<br>\n' +
+  '*탐지 커버리지가 확장되는지 증명*하기 위한 기반<br>\n' +
+  '||HTTP||의미||<br>\n' +
+  '|200|전건 성공|<br>\n' +
+  '</li></ul>';
+
+test('damage: wiki 마크업이 본문에 새어나오면 손상으로 본다', () => {
+  assert.strictEqual(hasWikiMarkupDamage(MANGLED_HTML, MANGLED_ADF), true);
+});
+
+test('damage: 신호별로 각각 잡는다', () => {
+  const adf = { type: 'doc', content: [paragraph('본문')] };
+  // 각 신호가 단독으로도 손상을 알린다.
+  assert.strictEqual(hasWikiMarkupDamage('<p>h4. 제목</p>', adf), true, 'heading');
+  assert.strictEqual(hasWikiMarkupDamage('<p>----</p>', adf), true, 'rule');
+  assert.strictEqual(hasWikiMarkupDamage('<p>||a||b||</p>', adf), true, 'table');
+  assert.strictEqual(hasWikiMarkupDamage('<p>*굵게*다</p>', adf), true, 'bold');
+  assert.strictEqual(hasWikiMarkupDamage('<p>{{코드}}</p>', adf), true, 'monospace');
+});
+
+test('damage: 정상 렌더 결과는 건드리지 않는다', () => {
+  const html = renderAdfNodeToHtml(MANGLED_ADF);
+  assert.strictEqual(hasWikiMarkupDamage(html, MANGLED_ADF), false);
+});
+
+test('damage: 원문이 실제로 가진 마크업 문자는 손상이 아니다', () => {
+  // 코드블록에 `h4.` `----` `||a||b||` `*` 를 직접 써 넣은 문서. 렌더 결과에도
+  // 같은 수만큼 나오므로 신호가 서지 않아야 한다.
+  const text = 'h4. 제목\n----\n||a||b||\n2 * 3 * 4\n{{x}}';
+  const adf = { type: 'doc', content: [{ type: 'codeBlock', content: [{ type: 'text', text }] }] };
+  assert.strictEqual(hasWikiMarkupDamage(renderAdfNodeToHtml(adf), adf), false);
+});
+
+test('damage: ADF가 없으면 판정하지 않는다 (Server/DC 위키 경로)', () => {
+  assert.strictEqual(hasWikiMarkupDamage('<p>h4. 제목</p>', null), false);
+  assert.strictEqual(hasWikiMarkupDamage('', MANGLED_ADF), false);
 });

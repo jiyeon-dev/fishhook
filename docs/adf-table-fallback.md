@@ -25,6 +25,7 @@ background.js
   -> resolveMediaInHtml          (기존 미디어/URL 보정)
   -> restoreAdfMacroPlaceholders (ADF -> HTML 로 표 복원)
   -> restoreCascadedCodeFences / restoreSplitCodeBlocks
+  -> replaceWikiMangledHtml      (위키 마크업이 새어나오면 문서 전체를 ADF에서 재렌더)
   -> restoreAdfTableWidths       (모든 표에 ADF 열 폭을 <colgroup>으로 복원)
   -> content/description-renderer.js
 ```
@@ -41,6 +42,7 @@ background.js
 | `fillAdfMacroPlaceholders(html, adf, options)` | HTML의 `ADF macro` 주석을 타입이 같은 ADF 노드로 치환 |
 | `applyAdfTableWidths(html, adf)` | HTML의 모든 `<table>`에 ADF 열 폭을 `<colgroup>`으로 주입 |
 | `normalizeColorMarks(html)` | Jira 색상 마크를 인라인 `color` / `background-color`로 번역 ([아래](#텍스트-색상-마크-복원)) |
+| `hasWikiMarkupDamage(html, adf)` | 렌더 결과에 위키 마크업이 새어나왔는지 판정 ([아래](#위키-마크업으로-뭉개진-본문)) |
 
 `options.renderMedia(mediaNode)`는 호스트(background.js)가 주입한다. `matchMediaToAttachment` → `createMediaElementHtml`로 첨부파일을 찾아 `<img>` / `<video>` / `[VIDEO]`를 만들고, 못 찾으면 `[media: 파일명]` placeholder로 떨어진다. 즉 `includeVideo` 옵션이 복원된 표 안 미디어에도 그대로 적용된다.
 
@@ -191,6 +193,63 @@ Cloud Jira 본문의 heading은 위쪽 여백을 `margin-top: var(--ds-space-250
   높이 1em)을 이미 넣는다. 그 뒤에 오는 heading은 위 여백을 0으로 되돌려
   간격이 두 배로 벌어지지 않게 한다.
 
+## 위키 마크업으로 뭉개진 본문
+
+표·색상과 같은 계열의 문제지만 파급이 훨씬 크다. Cloud Jira는 `renderedFields`를
+**ADF → 위키 마크업 → HTML** 순으로 만드는데, 본문 텍스트가 위키 마크업처럼 생겼으면
+가운데 단계가 어긋나고 **그 뒤 문서 전체가 무너진다.**
+
+관측 사례 (GS-13104):
+
+| 본문에 쓴 것 | 무슨 일이 일어나는가 |
+|--------------|----------------------|
+| 인라인 코드 `` `POST /mc/api/events/analysis/{index}` `` | `{{…{index}}}`의 `}}`가 monospace를 **조기 종료**. 이후 heading·구분선·목록·표가 전부 리터럴 `h4.` / `----` / `* ` / `\|\|a\|\|b\|\|` 텍스트로, 그 시점에 열려 있던 `<li>` 안에 뭉쳐서 나온다 |
+| `*굵게*` 뒤에 한글 | 닫는 `*` 다음이 단어문자라 델리미터로 인정되지 않아 **별표가 그대로 보인다**. 한글 본문에서는 거의 항상 발생 |
+| 인라인 코드 안의 `*` (`ExtAnalysis.*`) | 굵게 표시로 먹혀 `<b></b>`가 되고 `*`가 사라진다 |
+| `[^a-z0-9_-]` | 첨부파일 링크 문법으로 해석되어 `[media: …]` placeholder가 된다 |
+| 표 셀 안 `{ProcGuid}:{EventSeq}` | 중괄호 매크로로 잘려 셀이 여러 줄로 쪼개진다 |
+
+**HTML만 보고는 고칠 수 없다.** 우리가 응답을 받는 시점에 이미 구조가 사라졌고,
+원문이 어디까지였는지 알 방법이 없다. 유일한 복구는 `renderedFields`를 버리고
+`fields.description`(원본 ADF)에서 문서 전체를 다시 그리는 것이다.
+
+### 손상 판정
+
+문서를 통째로 갈아끼우는 결정이므로 보수적으로 간다. `hasWikiMarkupDamage(html, adf)`는
+**렌더 결과의 평문**과 **ADF 자체의 평문**에서 같은 토큰을 세고,
+**렌더 쪽이 더 많을 때만** 손상으로 본다. 작성자가 실제로 쓴 마크업 문자
+(코드블록 안의 `----`, 곱셈 기호 `*` 등)는 양쪽에 같은 수만큼 있으므로 신호가 서지 않는다.
+
+| 신호 | 정규식 | 무엇이 새어나온 것인가 |
+|------|--------|------------------------|
+| 굵게/기울임 | `/\*/g` | 델리미터로 인정받지 못한 별표 |
+| monospace | `/\{\{\|\}\}/g` | 짝이 어긋난 `{{ }}` 펜스 |
+| 표 | `/\|\|/g` | 표 머리행 마크업 |
+| heading | `/^[ \t]*h[1-6]\.[ \t]/gm` | `h4. 제목` |
+| 구분선 | `/^[ \t]*-{4,}[ \t]*$/gm` | `----` |
+
+평문 추출 시 블록 태그(`p`/`div`/`br`/`li`/`tr`/`td`/`h1~h6`/`pre` 등)를 줄바꿈으로
+바꾼다. 그러지 않으면 새어나온 `h4.`가 앞 텍스트와 한 줄에 붙어 줄머리 신호가 안 잡힌다.
+
+- **`adf`가 없으면 판정하지 않는다.** Server/DC 이슈는 description이 ADF가 아니라
+  위키 마크업 문자열이라 `adf`가 `null`이고, 그 경로는 원래 마크업이 정상 결과다.
+- 재렌더 결과가 비면 원래 HTML을 그대로 둔다. 아무것도 없는 본문이 뭉개진 본문보다 나쁘다.
+- `restoreCascadedCodeFences` / `restoreSplitCodeBlocks` **뒤에** 돌린다. 그 복구들이
+  먼저 성공하면 잔재가 사라져 오탐이 줄고, 실패하면 여기서 문서 전체가 복구된다.
+
+### 재렌더의 대가
+
+`renderAdfNodeToHtml`은 Jira의 HTML 변환기와 완전히 같지 않다. 손상된 문서에 한해
+아래를 감수한다 — 리터럴 마크업 덩어리보다는 낫다는 판단이다.
+
+- `inlineCard` / `blockCard`는 스마트 링크가 아니라 **URL 텍스트 링크**로 나온다.
+- `expand`는 항상 펼친 `<details open>`이다.
+- `layoutSection`(다단)은 단 구분 없이 `<div>`로 이어 붙는다.
+- 코드 블록은 Jira의 `.code.panel` 대신 `<pre><code>`다 (CSS가 둘 다 처리한다).
+
+인라인 코드는 `<code class="wiki-inline-code">`로 낸다. 스타일시트가 이 클래스로
+인라인 코드 모양을 잡기 때문에, 클래스가 없으면 재렌더한 문서의 코드가 맨몸으로 보인다.
+
 ## 수동 검증 체크리스트
 
 - [ ] Cloud Jira: `rowspan`/`colspan` 있는 표 → Objectives·미리보기 모두에 표 표시
@@ -214,3 +273,12 @@ Cloud Jira 본문의 heading은 위쪽 여백을 `margin-top: var(--ds-space-250
 - [ ] h1~h6를 연달아 쓴 본문 → 레벨에 상관없이 위 여백이 같음
 - [ ] 본문 **첫 줄이 heading**인 이슈 → heading 위가 뜨지 않음 (패널 상단 패딩만)
 - [ ] Server/DC(위키 마크업) 이슈의 heading → 간격이 두 배로 벌어지지 않음 (회귀 없음)
+- [ ] Cloud Jira: 인라인 코드에 `{index}`처럼 **중괄호**를 쓴 이슈 → 그 뒤 heading·구분선·표가
+      리터럴 `h4.` / `----` / `||…||` 로 보이지 않고 정상 렌더됨
+- [ ] 같은 이슈에서 `*굵게*` 뒤에 한글이 바로 붙은 문장 → 별표가 보이지 않고 굵게 표시됨
+- [ ] 재렌더된 문서의 표 → 열 비율·폭이 Jira와 같음
+- [ ] 재렌더된 문서의 이미지·동영상 → 첨부파일로 해석되고 `includeVideo` 설정이 그대로 적용됨
+- [ ] 재렌더된 문서의 인라인 코드 → 회색 배경 코드 모양 (맨몸 텍스트 아님)
+- [ ] 중괄호·별표가 없는 **정상 Cloud 이슈** → 렌더 결과가 이전과 동일 (오탐 회귀 없음)
+- [ ] 코드블록 안에 `----` / `||a||b||` / `h4.` 를 **일부러 써 넣은** 이슈 → 재렌더가 발동하지 않음
+- [ ] Server/DC(위키 마크업) 이슈 → 기존과 동일 (판정 자체가 돌지 않음)

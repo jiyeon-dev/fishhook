@@ -70,8 +70,11 @@
         return `<strong>${html}</strong>`;
       case 'em':
         return `<em>${html}</em>`;
+      // `wiki-inline-code` is the class Jira's own wiki-markup output uses; the
+      // injected stylesheet keys the inline-code look off it, so the ADF path has
+      // to carry it too or full-document renders come back unstyled.
       case 'code':
-        return `<code>${html}</code>`;
+        return `<code class="wiki-inline-code">${html}</code>`;
       case 'strike':
         return `<s>${html}</s>`;
       case 'underline':
@@ -663,8 +666,80 @@
     });
   }
 
+  // Cloud Jira builds `renderedFields` by converting ADF -> wiki markup -> HTML.
+  // Body text that happens to *look* like wiki markup derails the middle step, and
+  // the damage is not local. An inline code span holding `{index}` closes its own
+  // `{{...}}` fence early, and from there every heading, rule, list and table comes
+  // back as literal `h4.` / `----` / `* ` / `||a||b||` text stuffed inside whatever
+  // element was open at the time. Bold marks break the same way whenever the closing
+  // `*` is followed by a word character - which Korean prose almost always does -
+  // and `[^a-z0-9_-]` is read as attachment-link syntax.
+  //
+  // None of that is repairable from the HTML: the structure is already gone. The
+  // only fix is to throw the rendered HTML away and draw the document from the raw
+  // ADF, so the decision has to be conservative. We count wiki-markup tokens in the
+  // rendered text and in the ADF's own text, and act only when the renderer emitted
+  // markup the author never wrote. Server/DC issues never reach here - their
+  // description is a wiki-markup string, not ADF, so `adf` is null.
+  const DAMAGE_SIGNALS = [
+    /\*/g, // bold/italic delimiters left as literal asterisks
+    /\{\{|\}\}/g, // monospace fences that failed to pair off
+    /\|\|/g, // table header row markup
+    /^[ \t]*h[1-6]\.[ \t]/gm, // heading markup
+    /^[ \t]*-{4,}[ \t]*$/gm, // horizontal rule markup
+  ];
+
+  // Tags that separate lines. Without them a leaked `h4.` would share a line with
+  // the text before it and the line-anchored signals above would never match.
+  const BLOCK_BOUNDARY_RE =
+    /<\/?(?:p|div|br|li|ul|ol|tr|td|th|h[1-6]|pre|blockquote|hr|table|tbody|thead)\b[^>]*>/gi;
+
+  const PLAIN_TEXT_BLOCKS = new Set([
+    'paragraph',
+    'heading',
+    'listItem',
+    'codeBlock',
+    'blockquote',
+    'rule',
+    'table',
+    'tableRow',
+    'tableCell',
+    'tableHeader',
+    'panel',
+  ]);
+
+  function htmlToPlainText(html) {
+    return decodeEntities(String(html || '').replace(BLOCK_BOUNDARY_RE, '\n'));
+  }
+
+  function adfPlainText(node) {
+    if (!node || typeof node !== 'object') return '';
+    if (node.type === 'text') return String(node.text ?? '');
+    if (node.type === 'hardBreak') return '\n';
+    const inner = (Array.isArray(node.content) ? node.content : [])
+      .map((child) => adfPlainText(child))
+      .join('');
+    return PLAIN_TEXT_BLOCKS.has(node.type) ? `\n${inner}\n` : inner;
+  }
+
+  function countMatches(text, pattern) {
+    const found = text.match(pattern);
+    return found ? found.length : 0;
+  }
+
+  function hasWikiMarkupDamage(html, adf) {
+    const source = String(html || '');
+    if (!source || !adf) return false;
+    const rendered = htmlToPlainText(source);
+    const original = adfPlainText(adf);
+    return DAMAGE_SIGNALS.some(
+      (pattern) => countMatches(rendered, pattern) > countMatches(original, pattern)
+    );
+  }
+
   return {
     normalizeColorMarks,
+    hasWikiMarkupDamage,
     renderAdfNodeToHtml: renderNode,
     fillAdfMacroPlaceholders,
     repairSplitCodeBlocks,

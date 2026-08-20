@@ -75,6 +75,8 @@ renderedFields.description
   -> resolveMediaInHtml            # 썸네일→원본, 상대→절대, media card, error span
   -> restoreAdfMacroPlaceholders   # <!-- ADF macro (type='table') --> -> ADF에서 복원
   -> restoreCascadedCodeFences / restoreSplitCodeBlocks
+  -> replaceWikiMangledHtml        # 위키 마크업이 새어나오면 문서 전체를 ADF에서 재렌더
+  -> restoreAdfTableWidths         # 모든 표에 ADF 열 폭을 <colgroup>으로 복원
   -> (본문이 비면) ADF 평문 폴백
 ```
 

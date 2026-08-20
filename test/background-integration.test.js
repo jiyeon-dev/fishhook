@@ -270,3 +270,78 @@ test('색상 마크가 파이프라인을 지나며 인라인 color로 살아남
   assert.match(html, /color:#1558BC !important/);
   assert.match(html, /파랑<\/span>/);
 });
+
+// GS-13104: Cloud Jira converts ADF -> wiki markup -> HTML, and `{index}` inside
+// inline code closes its own `{{...}}` fence. Everything after it - heading, rule,
+// bold, table - comes back as literal markup inside the list item that was open.
+test('wiki 마크업으로 뭉개진 본문은 ADF에서 통째로 다시 그린다', () => {
+  const json = issue(
+    '<ul><li><code class="wiki-inline-code">POST /mc/api/events/analysis/\n{index</code>} (bulk)<br>\n' +
+      'h4. How do users configure and use it?<br>\n' +
+      '----<br>\n' +
+      '* 대상은 *허용 인덱스 7개*로 한정<br>\n' +
+      '||구분||변경 전||변경 후||<br>\n' +
+      '</li></ul>'
+  );
+  json.fields.description.content = [
+    {
+      type: 'paragraph',
+      content: [
+        { type: 'text', text: 'POST /mc/api/events/analysis/{index}', marks: [{ type: 'code' }] },
+        { type: 'text', text: ' (bulk)' },
+      ],
+    },
+    {
+      type: 'heading',
+      attrs: { level: 4 },
+      content: [{ type: 'text', text: 'How do users configure and use it?' }],
+    },
+    { type: 'rule' },
+    {
+      type: 'bulletList',
+      content: [
+        {
+          type: 'listItem',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'text', text: '대상은 ' },
+                { type: 'text', text: '허용 인덱스 7개', marks: [{ type: 'strong' }] },
+                { type: 'text', text: '로 한정' },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    MERGED_TABLE_ADF,
+  ];
+
+  const result = parse(json);
+
+  // 새어나온 위키 마크업이 하나도 남지 않는다.
+  assert.doesNotMatch(result.html, /h4\. How do users/);
+  assert.doesNotMatch(result.html, /\|\|구분\|\|/);
+  assert.doesNotMatch(result.html, /----/);
+  assert.doesNotMatch(result.html, /\*허용 인덱스 7개\*/);
+
+  // 구조가 실제 태그로 복원된다.
+  assert.match(result.html, /<code class="wiki-inline-code">POST \/mc\/api\/events\/analysis\/\{index\}<\/code> \(bulk\)/);
+  assert.match(result.html, /<h4>How do users configure and use it\?<\/h4>/);
+  assert.match(result.html, /<hr>/);
+  assert.match(result.html, /<strong>허용 인덱스 7개<\/strong>/);
+  assert.match(result.html, /<table class="wiki-table"[^>]*>[\s\S]*rowspan="2"/);
+  // 다시 그린 문서 안의 미디어도 첨부파일로 해석된다.
+  assert.match(
+    result.html,
+    /src="https:\/\/acme\.atlassian\.net\/secure\/attachment\/9001\/before\.png"/
+  );
+});
+
+test('정상 렌더 결과는 ADF 재렌더로 바뀌지 않는다', () => {
+  const json = issue('<p>머리말</p>\n<!-- ADF macro (type = \'table\') -->');
+  const result = parse(json);
+  // 표는 자리표시자 복원 경로로 들어오고, 문단은 Jira가 준 HTML 그대로다.
+  assert.match(result.html, /^<p>머리말<\/p>/);
+});

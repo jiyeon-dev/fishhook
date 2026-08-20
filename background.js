@@ -523,6 +523,23 @@ function restoreSplitCodeBlocks(html, adf) {
   return repair(html, adf);
 }
 
+// Cloud Jira renders ADF by converting it to wiki markup first, and body text that
+// looks like markup (`{index}` in inline code, `*굵게*` closed right before a Korean
+// character, `[^a-z0-9_-]`) breaks that conversion for the rest of the document -
+// headings, rules, lists and tables come back as literal `h4.` / `----` / `||a||b||`
+// text. Targeted repairs cannot help because the structure is already lost, so when
+// the damage is detected we drop the rendered HTML and draw everything from the ADF.
+function replaceWikiMangledHtml(html, adf, attachments, jiraBaseUrl, mediaOptions = {}) {
+  const isDamaged = self.FishHookAdfHtml?.hasWikiMarkupDamage;
+  const render = self.FishHookAdfHtml?.renderAdfNodeToHtml;
+  if (!isDamaged || !render || !adf) return html;
+  if (!isDamaged(html, adf)) return html;
+
+  const rebuilt = render(adf, adfRenderOptions(attachments, jiraBaseUrl, mediaOptions));
+  // A doc the renderer cannot turn into anything is worse than mangled markup.
+  return rebuilt && rebuilt.trim() ? rebuilt : html;
+}
+
 // Jira Cloud paints text/background color marks from its own stylesheet, which the
 // Fisheye page never loads. Turn those marks into real inline declarations before
 // anything else looks at the HTML.
@@ -538,31 +555,17 @@ function parseIssueDescription(json, jiraBaseUrl, mediaOptions = {}) {
 
   const rendered = json?.renderedFields?.description;
   if (rendered && String(rendered).trim()) {
-    const html = restoreAdfTableWidths(
-      restoreSplitCodeBlocks(
-        restoreCascadedCodeFences(
-          restoreAdfMacroPlaceholders(
-            resolveMediaInHtml(
-              restoreColorMarks(sanitizeHtml(rendered)),
-              adf,
-              attachments,
-              jiraBaseUrl,
-              mediaOptions
-            ),
-            adf,
-            attachments,
-            jiraBaseUrl,
-            mediaOptions
-          ),
-          adf,
-          attachments,
-          jiraBaseUrl,
-          mediaOptions
-        ),
-        adf
-      ),
-      adf
-    );
+    // Order matters: color marks before anything reads the HTML, media before the
+    // ADF repairs so restored nodes reuse the same attachment matching, and table
+    // widths last so every table - including ones the repairs just built - is counted.
+    const media = [adf, attachments, jiraBaseUrl, mediaOptions];
+    let html = restoreColorMarks(sanitizeHtml(rendered));
+    html = resolveMediaInHtml(html, ...media);
+    html = restoreAdfMacroPlaceholders(html, ...media);
+    html = restoreCascadedCodeFences(html, ...media);
+    html = restoreSplitCodeBlocks(html, adf);
+    html = replaceWikiMangledHtml(html, ...media);
+    html = restoreAdfTableWidths(html, adf);
     const text = stripHtmlToText(html);
     if (hasRenderableHtml(html, text)) return { html, text };
   }
